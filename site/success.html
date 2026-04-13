@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>You're in — CopyCat</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0d1117;color:#e6edf3;font-family:Inter,-apple-system,sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+.card{background:#161b22;border:1px solid #21262d;border-radius:20px;max-width:560px;width:100%;overflow:hidden}
+.top{background:linear-gradient(135deg,rgba(63,185,80,.12),rgba(46,160,67,.06));border-bottom:1px solid #21262d;padding:40px 40px 32px;text-align:center}
+.cat{font-size:56px;margin-bottom:12px}
+h1{font-size:26px;font-weight:800;margin-bottom:8px}
+h1 span{color:#3fb950}
+.sub{color:#8b949e;font-size:15px;line-height:1.6}
+.body{padding:36px 40px}
+.step{display:flex;gap:16px;align-items:flex-start;margin-bottom:24px}
+.num{width:34px;height:34px;border-radius:50%;background:#2ea043;color:#fff;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.step-text h3{font-size:15px;font-weight:700;margin-bottom:6px}
+.step-text p{color:#8b949e;font-size:13px;line-height:1.5;margin-bottom:8px}
+.cmd{background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:12px 16px;font-family:'Courier New',monospace;font-size:13px;color:#58a6ff;position:relative;cursor:pointer;transition:border-color .2s}
+.cmd:hover{border-color:#58a6ff}
+.copy-btn{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:#21262d;border:none;color:#8b949e;font-size:11px;font-weight:600;padding:4px 8px;border-radius:4px;cursor:pointer;transition:all .2s}
+.copy-btn:hover{background:#30363d;color:#e6edf3}
+.email-note{background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.2);border-radius:12px;padding:16px 20px;margin-bottom:24px;display:flex;gap:12px;align-items:flex-start}
+.email-note .icon{font-size:20px;flex-shrink:0;margin-top:2px}
+.email-note p{color:#8b949e;font-size:13px;line-height:1.5}
+.email-note strong{color:#3fb950}
+.discord-bar{background:rgba(88,101,242,.1);border:1px solid rgba(88,101,242,.25);border-radius:12px;padding:16px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.discord-bar p{color:#8b949e;font-size:13px}
+.discord-bar strong{color:#e6edf3;display:block;font-size:14px;margin-bottom:2px}
+.discord-btn{background:#5865f2;color:#fff;font-size:13px;font-weight:700;padding:10px 20px;border-radius:8px;text-decoration:none;white-space:nowrap;transition:background .2s}
+.discord-btn:hover{background:#4752c4}
+.divider{border:none;border-top:1px solid #21262d;margin:24px 0}
+.footer{color:#8b949e;font-size:12px;text-align:center}
+.footer a{color:#3fb950;text-decoration:none}
+@keyframes pop{0%{transform:scale(.8);opacity:0}100%{transform:scale(1);opacity:1}}
+.card{animation:pop .4s cubic-bezier(.34,1.56,.64,1) both}
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="top">
+    <div class="cat">🐱</div>
+    <h1>Welcome to <span>CopyCat</span></h1>
+    <p class="sub">Your license key is on its way to your inbox.<br>Follow the steps below to get your bot running.</p>
+  </div>
+
+  <div class="body">
+
+    <!-- Email note -->
+    <div class="email-note">
+      <div class="icon">📧</div>
+      <p><strong>Check your email</strong> — your license key was just sent. If you don't see it in 2 minutes, check your spam folder or reply to support@adam-works.com.</p>
+    </div>
+
+    <!-- Step 1 -->
+    <div class="step">
+      <div class="num">1</div>
+      <div class="step-text">
+        <h3>Run the installer</h3>
+        <p>Open Terminal (Mac) or PowerShell (Windows) and paste this command:</p>
+        <div class="cmd" onclick="copyCmd(this)">
+          bash &lt;(curl -s https://copycat.adam-works.co/install.sh)
+          <button class="copy-btn" onclick="event.stopPropagation();copyCmd(this.parentElement)">Copy</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="step">
+      <div class="num">2</div>
+      <div class="step-text">
+        <h3>Open the dashboard</h3>
+        <p>The installer opens it automatically. Or go to <code style="background:#0d1117;padding:2px 6px;border-radius:4px;color:#58a6ff;font-size:12px">localhost:5001</code> in your browser.</p>
+      </div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="step">
+      <div class="num">3</div>
+      <div class="step-text">
+        <h3>Enter your license key</h3>
+        <p>Paste the key from your email into the activation screen and click <strong>Activate</strong>. The bot starts immediately.</p>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Discord -->
+    <div class="discord-bar">
+      <div>
+        <strong>Join the community</strong>
+        <p>Get setup help, share wins, and get daily market alerts.</p>
+      </div>
+      <a href="https://discord.gg/4tZqtuYh" class="discord-btn" target="_blank" rel="noopener">Join Discord →</a>
+    </div>
+
+    <hr class="divider">
+    <p class="footer">Questions? <a href="mailto:support@adam-works.com">support@adam-works.com</a> &nbsp;·&nbsp; <a href="https://copycat.adam-works.co">copycat.adam-works.co</a></p>
+  </div>
+</div>
+
+<script>
+function copyCmd(el) {
+  const text = 'bash <(curl -s https://copycat.adam-works.co/install.sh)';
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = el.querySelector('.copy-btn');
+    if (btn) { btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = 'Copy', 2000); }
+  });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+{
+  "wager_mode": "fixed",
+  "wager_fixed": 10,
+  "wager_pct": 2,
+  "daily_loss_limit": 100,
+  "selected_traders": [],
+  "categories": {
+    "sports": {
+      "enabled": true,
+      "sports": [],
+      "teams": []
+    },
+    "crypto": {
+      "enabled": true,
+      "sports": [],
+      "teams": []
+    },
+    "politics": {
+      "enabled": true,
+      "sports": [],
+      "teams": []
+    },
+    "economics": {
+      "enabled": true,
+      "sports": [],
+      "teams": []
+    }
+  },
+  "scan_all_simultaneously": true,
+  "tos_accepted": true
+}

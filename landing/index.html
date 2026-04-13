@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CopyCat — Copy the Top Polymarket Traders Automatically</title>
+<meta name="description" content="CopyCat automatically mirrors the trades of Polymarket's top performers. Set it up once, let it run.">
+<meta property="og:title" content="CopyCat — Copy the Top Polymarket Traders">
+<meta property="og:description" content="Automatically mirror the trades of Polymarket's top performers. Real-time dashboard. One-click setup.">
+<meta property="og:type" content="website">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d1117;--surface:#161b22;--border:#21262d;
+  --green:#3fb950;--green-dim:#2ea043;
+  --purple:#a371f7;--purple-dim:#8957e5;
+  --blue:#58a6ff;
+  --text:#e6edf3;--muted:#8b949e;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:15px;line-height:1.6;overflow-x:hidden}
+
+/* ── Nav ── */
+nav{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;justify-content:space-between;padding:16px 40px;background:rgba(13,17,23,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+.logo{font-size:18px;font-weight:700;color:var(--text)}.logo span{color:var(--green)}
+.nav-links{display:flex;align-items:center;gap:28px}
+.nav-links a{color:var(--muted);text-decoration:none;font-size:14px;transition:color .2s}.nav-links a:hover{color:var(--text)}
+.nav-cta{padding:8px 20px;background:var(--green-dim);color:#fff;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;transition:background .2s}.nav-cta:hover{background:var(--green)}
+
+/* ── Hero ── */
+.hero{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:120px 24px 80px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-200px;left:50%;transform:translateX(-50%);width:700px;height:700px;background:radial-gradient(circle,rgba(63,185,80,.08) 0%,transparent 70%);pointer-events:none}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 16px;background:rgba(63,185,80,.1);border:1px solid rgba(63,185,80,.3);border-radius:20px;font-size:12px;font-weight:600;color:var(--green);margin-bottom:28px;letter-spacing:.4px}
+.badge-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+h1{font-size:clamp(36px,6vw,68px);font-weight:800;line-height:1.1;letter-spacing:-1.5px;margin-bottom:24px;max-width:800px}
+h1 span{background:linear-gradient(135deg,var(--green),var(--blue));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero-sub{font-size:clamp(16px,2vw,20px);color:var(--muted);max-width:540px;margin:0 auto 40px;line-height:1.6}
+.hero-ctas{display:flex;gap:14px;flex-wrap:wrap;justify-content:center}
+.btn-primary{padding:14px 32px;background:var(--green-dim);color:#fff;border-radius:10px;text-decoration:none;font-size:15px;font-weight:700;transition:all .2s;border:none;cursor:pointer}.btn-primary:hover{background:var(--green);transform:translateY(-1px)}
+.btn-secondary{padding:14px 32px;background:transparent;color:var(--text);border-radius:10px;text-decoration:none;font-size:15px;font-weight:600;border:1px solid var(--border);transition:all .2s}.btn-secondary:hover{border-color:var(--muted);transform:translateY(-1px)}
+.hero-note{margin-top:18px;font-size:13px;color:var(--muted)}
+
+/* ── Live ticker ── */
+.ticker-wrap{width:100%;overflow:hidden;border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:var(--surface);padding:14px 0;margin-top:0}
+.ticker{display:flex;gap:48px;animation:scroll 28s linear infinite;white-space:nowrap}
+@keyframes scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.tick-item{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--muted)}
+.tick-trader{color:var(--text);font-weight:600}
+.tick-win{color:var(--green)}.tick-loss{color:#f85149}
+
+/* ── Stats bar ── */
+.stats-bar{display:flex;justify-content:center;gap:0;flex-wrap:wrap;padding:60px 24px}
+.stat{text-align:center;padding:0 48px;border-right:1px solid var(--border)}
+.stat:last-child{border-right:none}
+.stat-num{font-size:42px;font-weight:800;color:var(--text);letter-spacing:-1px}
+.stat-num span{color:var(--green)}
+.stat-label{font-size:13px;color:var(--muted);margin-top:4px}
+
+/* ── How it works ── */
+.section{padding:80px 24px;max-width:1100px;margin:0 auto}
+.section-label{font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--green);font-weight:700;margin-bottom:12px;text-align:center}
+.section-title{font-size:clamp(28px,4vw,40px);font-weight:800;text-align:center;margin-bottom:12px;letter-spacing:-.5px}
+.section-sub{font-size:16px;color:var(--muted);text-align:center;max-width:480px;margin:0 auto 56px}
+
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+@media(max-width:700px){.steps{grid-template-columns:1fr}}
+.step-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px}
+.step-num{width:36px;height:36px;border-radius:10px;background:rgba(63,185,80,.1);border:1px solid rgba(63,185,80,.3);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:var(--green);margin-bottom:18px}
+.step-card h3{font-size:16px;font-weight:700;margin-bottom:8px}
+.step-card p{font-size:14px;color:var(--muted);line-height:1.6}
+
+/* ── Dashboard preview ── */
+.preview-wrap{max-width:900px;margin:0 auto;border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 40px 80px rgba(0,0,0,.4)}
+.preview-bar{background:var(--surface);padding:14px 18px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)}
+.preview-dot{width:12px;height:12px;border-radius:50%}
+.preview-url{flex:1;background:var(--bg);border-radius:6px;padding:5px 14px;font-size:12px;color:var(--muted);margin-left:12px}
+.preview-body{background:var(--bg);padding:28px;display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+.p-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px}
+.p-label{font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin-bottom:8px}
+.p-val{font-size:22px;font-weight:800}
+.p-val.green{color:var(--green)}.p-val.red{color:#f85149}.p-val.blue{color:var(--blue)}
+.p-sub{font-size:11px;color:var(--muted);margin-top:4px}
+.preview-table{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:0;overflow:hidden;grid-column:1/-1;margin-top:4px}
+.pt-head{display:grid;grid-template-columns:1fr 1.5fr 2fr 0.8fr 0.8fr 0.8fr;gap:0;padding:10px 16px;border-bottom:1px solid var(--border)}
+.pt-h{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:600}
+.pt-row{display:grid;grid-template-columns:1fr 1.5fr 2fr 0.8fr 0.8fr 0.8fr;gap:0;padding:10px 16px;border-bottom:1px solid var(--border);align-items:center}
+.pt-row:last-child{border-bottom:none}
+.pt-cell{font-size:12px;color:var(--muted)}
+.pt-cell.bold{color:var(--text);font-weight:500}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700}
+.b-buy{background:rgba(63,185,80,.1);color:var(--green);border:1px solid rgba(63,185,80,.3)}
+.b-sell{background:rgba(88,166,255,.1);color:var(--blue);border:1px solid rgba(88,166,255,.3)}
+.b-yes{background:rgba(63,185,80,.1);color:var(--green)}
+.b-no{background:rgba(248,81,73,.1);color:#f85149}
+
+/* ── Pricing ── */
+.pricing{display:grid;grid-template-columns:1fr 1fr;gap:24px;max-width:800px;margin:0 auto}
+@media(max-width:640px){.pricing{grid-template-columns:1fr}}
+.price-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;position:relative}
+.price-card.featured{border-color:var(--purple-dim);box-shadow:0 0 0 1px var(--purple-dim),0 20px 40px rgba(139,87,229,.15)}
+.featured-badge{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--purple-dim);color:#fff;font-size:11px;font-weight:700;padding:4px 16px;border-radius:20px;white-space:nowrap}
+.price-name{font-size:14px;font-weight:700;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px}
+.price-amount{font-size:48px;font-weight:800;letter-spacing:-1px;margin-bottom:4px}
+.price-amount sup{font-size:24px;vertical-align:top;margin-top:10px}
+.price-cadence{font-size:13px;color:var(--muted);margin-bottom:24px}
+.price-features{list-style:none;margin-bottom:28px;display:flex;flex-direction:column;gap:10px}
+.price-features li{display:flex;align-items:flex-start;gap:10px;font-size:14px;color:var(--muted)}
+.price-features li::before{content:'✓';color:var(--green);font-weight:700;flex-shrink:0;margin-top:1px}
+.price-features li.locked{color:#484f58}
+.price-features li.locked::before{content:'✗';color:#484f58}
+.price-btn{display:block;text-align:center;padding:13px;border-radius:10px;font-size:14px;font-weight:700;text-decoration:none;transition:all .2s}
+.price-btn.green{background:var(--green-dim);color:#fff}.price-btn.green:hover{background:var(--green)}
+.price-btn.purple{background:var(--purple-dim);color:#fff}.price-btn.purple:hover{background:var(--purple)}
+.price-note{font-size:12px;color:var(--muted);text-align:center;margin-top:10px}
+.addon{max-width:800px;margin:20px auto 0;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px 28px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.addon-info h4{font-size:15px;font-weight:700;margin-bottom:4px}
+.addon-info p{font-size:13px;color:var(--muted)}
+.addon-price{font-size:24px;font-weight:800;white-space:nowrap}
+.addon-price span{font-size:13px;color:var(--muted);font-weight:400}
+.addon-btn{padding:10px 24px;background:rgba(88,166,255,.1);color:var(--blue);border:1px solid rgba(88,166,255,.3);border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;transition:all .2s;white-space:nowrap}
+.addon-btn:hover{background:rgba(88,166,255,.2)}
+/* Coming soon addon */
+.coming-soon-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(255,166,0,.1);border:1px solid rgba(255,166,0,.35);color:#f0a500;font-size:11px;font-weight:700;padding:3px 12px;border-radius:20px;letter-spacing:.4px;text-transform:uppercase;white-space:nowrap}
+.addon.coming-soon-card{border-color:rgba(255,166,0,.2);background:linear-gradient(135deg,rgba(255,166,0,.04),rgba(13,17,23,0));opacity:.9}
+.waitlist-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.waitlist-row input{flex:1;min-width:180px;padding:9px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none}
+.waitlist-row input::placeholder{color:var(--muted)}
+.waitlist-row input:focus{border-color:rgba(255,166,0,.5)}
+.waitlist-btn{padding:9px 18px;background:rgba(255,166,0,.15);color:#f0a500;border:1px solid rgba(255,166,0,.4);border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .2s}
+.waitlist-btn:hover{background:rgba(255,166,0,.25)}
+.waitlist-sent{color:#f0a500;font-size:13px;font-weight:600;display:none}
+
+/* ── Ad showcase ── */
+.ad-showcase{display:flex;align-items:center;justify-content:center;gap:56px;flex-wrap:wrap;padding:20px 0 60px}
+
+/* Phone mockup */
+.phone-wrap{position:relative;width:240px;flex-shrink:0}
+.phone-shell{width:240px;height:496px;border-radius:40px;background:linear-gradient(145deg,#2a2a2a,#111);box-shadow:0 0 0 2px #333,0 32px 80px rgba(0,0,0,.7),inset 0 0 0 1px #444;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.phone-notch{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:72px;height:20px;background:#111;border-radius:12px;z-index:10}
+.phone-screen{width:224px;height:480px;border-radius:32px;overflow:hidden;position:relative}
+.phone-iframe{width:1080px;height:1920px;border:none;transform:scale(0.2074);transform-origin:top left;pointer-events:none;display:block}
+.phone-glow{position:absolute;inset:-20px;background:radial-gradient(ellipse at 50% 50%,rgba(63,185,80,.15),transparent 70%);pointer-events:none;border-radius:60px}
+
+/* Square ad mockup */
+.square-wrap{position:relative;flex-shrink:0}
+.square-shell{width:320px;height:320px;border-radius:16px;overflow:hidden;box-shadow:0 0 0 2px #333,0 32px 80px rgba(0,0,0,.6);position:relative}
+.square-iframe{width:1080px;height:1080px;border:none;transform:scale(0.2963);transform-origin:top left;pointer-events:none;display:block}
+.square-label{text-align:center;margin-top:12px;font-size:12px;color:var(--muted);letter-spacing:.4px}
+.phone-label{text-align:center;margin-top:12px;font-size:12px;color:var(--muted);letter-spacing:.4px}
+.ad-glow{position:absolute;inset:-1px;border-radius:16px;box-shadow:0 0 30px rgba(63,185,80,.18);pointer-events:none}
+
+/* ── FAQ ── */
+.faq{max-width:680px;margin:0 auto;display:flex;flex-direction:column;gap:2px}
+.faq-item{border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:4px}
+.faq-q{padding:18px 22px;font-size:15px;font-weight:600;cursor:pointer;display:flex;justify-content:space-between;align-items:center;background:var(--surface);transition:background .2s}
+.faq-q:hover{background:#1c2128}
+.faq-icon{color:var(--muted);transition:transform .25s;font-size:18px}
+.faq-a{font-size:14px;color:var(--muted);line-height:1.7;padding:0 22px;max-height:0;overflow:hidden;transition:max-height .3s ease,padding .3s}
+.faq-item.open .faq-a{max-height:200px;padding:0 22px 18px}
+.faq-item.open .faq-icon{transform:rotate(45deg)}
+
+/* ── Footer ── */
+footer{border-top:1px solid var(--border);padding:40px 24px;text-align:center}
+footer p{font-size:13px;color:var(--muted)}
+footer a{color:var(--muted);text-decoration:none}.footer a:hover{color:var(--text)}
+
+/* ── Misc ── */
+@media(max-width:600px){
+  nav{padding:14px 20px}
+  .nav-links{display:none}
+  .stat{padding:0 24px}
+  .stat-num{font-size:32px}
+  .preview-body{grid-template-columns:1fr 1fr}
+  .pt-head,.pt-row{grid-template-columns:1fr 1.2fr 1fr 0.8fr}
+}
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav>
+  <div class="logo">Copy<span>Cat</span></div>
+  <div class="nav-links">
+    <a href="#how-it-works">How it works</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#faq">FAQ</a>
+    <a href="https://discord.gg/4tZqtuYh" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:6px;color:#5865f2;font-weight:600"><svg width="18" height="14" viewBox="0 0 71 55" fill="#5865f2" xmlns="http://www.w3.org/2000/svg"><path d="M60.1 4.9A58.5 58.5 0 0 0 45.6.9a.2.2 0 0 0-.2.1 40.8 40.8 0 0 0-1.8 3.7 54 54 0 0 0-16.2 0A37.5 37.5 0 0 0 25.6 1a.2.2 0 0 0-.2-.1A58.4 58.4 0 0 0 10.9 4.9a.2.2 0 0 0-.1.1C1.6 18.1-.9 31 .3 43.6a.2.2 0 0 0 .1.2 58.8 58.8 0 0 0 17.7 8.9.2.2 0 0 0 .2-.1 42 42 0 0 0 3.6-5.9.2.2 0 0 0-.1-.3 38.7 38.7 0 0 1-5.5-2.6.2.2 0 0 1 0-.4l1.1-.8a.2.2 0 0 1 .2 0c11.5 5.3 24 5.3 35.3 0a.2.2 0 0 1 .2 0l1.1.8a.2.2 0 0 1 0 .4 36.2 36.2 0 0 1-5.5 2.6.2.2 0 0 0-.1.3 47.1 47.1 0 0 0 3.6 5.9.2.2 0 0 0 .2.1 58.7 58.7 0 0 0 17.8-8.9.2.2 0 0 0 .1-.2c1.4-14.9-2.4-27.7-10.1-39.1a.2.2 0 0 0-.1 0ZM23.7 36.2c-3.5 0-6.4-3.2-6.4-7.2s2.8-7.2 6.4-7.2c3.6 0 6.5 3.3 6.4 7.2 0 3.9-2.8 7.2-6.4 7.2Zm23.6 0c-3.5 0-6.4-3.2-6.4-7.2s2.8-7.2 6.4-7.2c3.6 0 6.5 3.3 6.4 7.2 0 3.9-2.8 7.2-6.4 7.2Z"/></svg>Discord</a>
+  </div>
+  <a href="#pricing" class="nav-cta">Get Started</a>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-badge"><span class="badge-dot"></span> Live on Polymarket</div>
+  <h1>Copy the top traders.<br><span>Automatically.</span></h1>
+  <p class="hero-sub">CopyCat watches Polymarket's highest-earning traders and mirrors their positions in real time — while you sleep.</p>
+  <div class="hero-ctas">
+    <a href="#pricing" class="btn-primary">Start Copying Trades →</a>
+    <a href="#how-it-works" class="btn-secondary">See how it works</a>
+  </div>
+  <p class="hero-note">One-click install · Mac &amp; Windows · No coding required</p>
+</section>
+
+<!-- Live ticker -->
+<div class="ticker-wrap">
+  <div class="ticker">
+    <div class="tick-item"><span class="tick-trader">beachboy4</span> copied · <span class="tick-win">+$3.45M this week</span></div>
+    <div class="tick-item"><span class="tick-trader">JPMorgan101</span> copied · <span class="tick-win">+$1.12M this week</span></div>
+    <div class="tick-item"><span class="tick-trader">swisstony</span> copied · <span class="tick-win">+$1.29M this week</span></div>
+    <div class="tick-item"><span class="tick-trader">texaskid</span> copied · <span class="tick-win">+$1.39M this week</span></div>
+    <div class="tick-item"><span class="tick-trader">elkmonkey</span> copied · <span class="tick-win">+$1.15M this week</span></div>
+    <div class="tick-item"><span class="tick-trader">Countryside</span> copied · <span class="tick-win">+$2.13M this week</span></div>
+    <!-- duplicate for seamless loop -->
+    <div class="tick-item"><span class="tick-trader">beachboy4</span> copied · <span class="tick-win">+$3.45M this week</span></div>
+    <div class="tick-item"><span class="tick-trader">JPMorgan101</span> copied · <span class="tick-win">+$1.12M this week</span></div>
+    <div class="tick-item"><span class="tick-trader">swisstony</span> copied · <span class="tick-win">+$1.29M this week</span></div>
+    <div class="tick-item"><span class="tick-trader">texaskid</span> copied · <span class="tick-win">+$1.39M this week</span></div>
+    <div class="tick-item"><span class="tick-trader">elkmonkey</span> copied · <span class="tick-win">+$1.15M this week</span></div>
+    <div class="tick-item"><span class="tick-trader">Countryside</span> copied · <span class="tick-win">+$2.13M this week</span></div>
+  </div>
+</div>
+
+<!-- Stats -->
+<div class="stats-bar">
+  <div class="stat"><div class="stat-num"><span>$</span>6.6M</div><div class="stat-label">Top trader earned this week</div></div>
+  <div class="stat"><div class="stat-num">10</div><div class="stat-label">Traders copied simultaneously</div></div>
+  <div class="stat"><div class="stat-num">30<span>s</span></div><div class="stat-label">Trade mirror speed</div></div>
+  <div class="stat"><div class="stat-num">24<span>/7</span></div><div class="stat-label">Runs while you sleep</div></div>
+</div>
+
+<!-- How it works -->
+<section class="section" id="how-it-works">
+  <div class="section-label">How it works</div>
+  <h2 class="section-title">Set it up once. Let it run.</h2>
+  <p class="section-sub">CopyCat handles everything from finding the best traders to placing the trades for you.</p>
+  <div class="steps">
+    <div class="step-card">
+      <div class="step-num">1</div>
+      <h3>Install in one click</h3>
+      <p>Run our installer script. It sets up everything — no coding, no config files, no terminal knowledge needed.</p>
+    </div>
+    <div class="step-card">
+      <div class="step-num">2</div>
+      <h3>Connect your wallet</h3>
+      <p>Log in with your Polymarket account. CopyCat links to your wallet and is ready to trade in under a minute.</p>
+    </div>
+    <div class="step-card">
+      <div class="step-num">3</div>
+      <h3>Watch the trades come in</h3>
+      <p>CopyCat finds the top 10 traders every week and automatically mirrors their buys and sells in real time.</p>
+    </div>
+  </div>
+</section>
+
+<!-- Dashboard preview -->
+<section class="section" style="padding-top:0">
+  <div class="section-label">Live dashboard</div>
+  <h2 class="section-title">See everything at a glance</h2>
+  <p class="section-sub">A real-time dashboard shows your P&L, win rate, and every trade as it happens.</p>
+  <div class="preview-wrap">
+    <div class="preview-bar">
+      <div class="preview-dot" style="background:#ff5f57"></div>
+      <div class="preview-dot" style="background:#febc2e"></div>
+      <div class="preview-dot" style="background:#28c840"></div>
+      <div class="preview-url">localhost:5001 — CopyCat Dashboard</div>
+    </div>
+    <div class="preview-body">
+      <div class="p-card"><div class="p-label">Realized P&L</div><div class="p-val green">+$284</div><div class="p-sub">$1,200 deployed</div></div>
+      <div class="p-card"><div class="p-label">Win Rate</div><div class="p-val green">68%</div><div class="p-sub">24 resolved</div></div>
+      <div class="p-card"><div class="p-label">Total Trades</div><div class="p-val">47</div><div class="p-sub">31 buys · 16 sells</div></div>
+      <div class="p-card"><div class="p-label">Winners</div><div class="p-val green">16</div><div class="p-sub">round-trips</div></div>
+      <div class="p-card"><div class="p-label">Losers</div><div class="p-val red">8</div><div class="p-sub" style="display:flex;height:5px;border-radius:3px;overflow:hidden;margin-top:10px;background:#21262d"><span style="background:#3fb950;width:66%"></span><span style="background:#f85149;width:34%"></span></div></div>
+      <div class="preview-table">
+        <div class="pt-head">
+          <div class="pt-h">Time</div><div class="pt-h">Trader</div><div class="pt-h">Market</div><div class="pt-h">Outcome</div><div class="pt-h">Action</div><div class="pt-h">Amount</div>
+        </div>
+        <div class="pt-row"><div class="pt-cell">12:04</div><div class="pt-cell bold">beachboy4</div><div class="pt-cell">will-fed-cut-rates-june</div><div class="pt-cell"><span class="badge b-yes">YES</span></div><div class="pt-cell"><span class="badge b-buy">BUY</span></div><div class="pt-cell bold">$10</div></div>
+        <div class="pt-row"><div class="pt-cell">11:51</div><div class="pt-cell bold">JPMorgan101</div><div class="pt-cell">will-btc-hit-100k-april</div><div class="pt-cell"><span class="badge b-no">NO</span></div><div class="pt-cell"><span class="badge b-buy">BUY</span></div><div class="pt-cell bold">$10</div></div>
+        <div class="pt-row"><div class="pt-cell">11:38</div><div class="pt-cell bold">texaskid</div><div class="pt-cell">will-trump-sign-tariff</div><div class="pt-cell"><span class="badge b-yes">YES</span></div><div class="pt-cell"><span class="badge b-sell">SELL</span></div><div class="pt-cell bold">12 sh</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Ad showcase -->
+<section class="section" id="in-action" style="padding-bottom:0">
+  <div class="section-label">See it in action</div>
+  <h2 class="section-title">Built to look as good as it performs</h2>
+  <p class="section-sub">Watch the bot trade live. Ready-made for Instagram, TikTok, and X.</p>
+
+  <div class="ad-showcase">
+
+    <!-- Demo video — phone mockup -->
+    <div>
+      <div class="phone-wrap">
+        <div class="phone-glow"></div>
+        <div class="phone-shell">
+          <div class="phone-notch"></div>
+          <div class="phone-screen">
+            <iframe class="phone-iframe"
+              src="../ads/graphics/copycat_demo_video.html"
+              scrolling="no" title="CopyCat Demo">
+            </iframe>
+          </div>
+        </div>
+      </div>
+      <div class="phone-label">📱 Demo Reel · 30s · 1080×1920</div>
+    </div>
+
+    <!-- Main ad — square -->
+    <div>
+      <div class="square-wrap">
+        <div class="square-shell">
+          <iframe class="square-iframe"
+            src="../ads/graphics/copycat_main_ad.html"
+            scrolling="no" title="CopyCat Ad">
+          </iframe>
+        </div>
+        <div class="ad-glow"></div>
+      </div>
+      <div class="square-label">🎬 Main Ad · 15s loop · 1080×1080</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- Discord Section -->
+<section style="padding:80px 24px;background:linear-gradient(180deg,var(--bg) 0%,rgba(88,101,242,.05) 40%,var(--bg) 100%)" id="discord">
+  <div style="max-width:1100px;margin:0 auto">
+    <div class="section-label" style="color:#7289da">Intelligence Network</div>
+    <h2 class="section-title">Know before the market moves</h2>
+    <p class="section-sub" style="max-width:560px">Every morning, our agent scans Polymarket for smart money signals and posts them straight to Discord — before prices shift.</p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:center;margin-top:20px">
+      <!-- Left: mock Discord feed -->
+      <div style="background:#1e2124;border-radius:16px;overflow:hidden;border:1px solid rgba(88,101,242,.2)">
+        <!-- Discord header bar -->
+        <div style="background:#2f3136;padding:12px 20px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(0,0,0,.3)">
+          <span style="color:#7289da;font-size:16px;font-weight:700">#</span>
+          <span style="color:#fff;font-size:14px;font-weight:600">alerts-all</span>
+          <span style="margin-left:auto;background:rgba(88,101,242,.2);color:#7289da;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px">MEMBERS ONLY</span>
+        </div>
+        <!-- Alert messages -->
+        <div style="padding:16px;display:flex;flex-direction:column;gap:12px" id="discord-feed">
+
+          <div class="dc-msg" style="animation:slideUp .5s ease .1s both">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#3fb950,#1e6b2a);display:flex;align-items:center;justify-content:center;font-size:14px">🐱</div>
+              <span style="color:#3fb950;font-size:13px;font-weight:700">CopyCat Agent</span>
+              <span style="color:#72767d;font-size:11px">Today at 8:02 AM</span>
+            </div>
+            <div style="background:#2f3136;border-left:4px solid #f0a500;border-radius:4px;padding:10px 14px;margin-left:40px">
+              <div style="color:#f0a500;font-size:11px;font-weight:700;margin-bottom:4px">₿ CRYPTO SIGNAL</div>
+              <div style="color:#e6edf3;font-size:13px;font-weight:600">Whale bought 48K YES shares on Bitcoin $100K</div>
+              <div style="color:#72767d;font-size:12px;margin-top:4px">Price: $0.61 · 24h vol: $2.4M · <span style="color:#3fb950">+61% this week</span></div>
+            </div>
+          </div>
+
+          <div class="dc-msg" style="animation:slideUp .5s ease .3s both">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#3fb950,#1e6b2a);display:flex;align-items:center;justify-content:center;font-size:14px">🐱</div>
+              <span style="color:#3fb950;font-size:13px;font-weight:700">CopyCat Agent</span>
+              <span style="color:#72767d;font-size:11px">Today at 8:02 AM</span>
+            </div>
+            <div style="background:#2f3136;border-left:4px solid #ff6b6b;border-radius:4px;padding:10px 14px;margin-left:40px">
+              <div style="color:#ff6b6b;font-size:11px;font-weight:700;margin-bottom:4px">🏛️ POLITICS SIGNAL</div>
+              <div style="color:#e6edf3;font-size:13px;font-weight:600">Smart money moved on Trump tariff extension</div>
+              <div style="color:#72767d;font-size:12px;margin-top:4px">Price: $0.73 · 24h vol: $1.8M · <span style="color:#3fb950">+34% this week</span></div>
+            </div>
+          </div>
+
+          <div class="dc-msg" style="animation:slideUp .5s ease .5s both">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#3fb950,#1e6b2a);display:flex;align-items:center;justify-content:circle;font-size:14px">🐱</div>
+              <span style="color:#3fb950;font-size:13px;font-weight:700">CopyCat Agent</span>
+              <span style="color:#72767d;font-size:11px">Today at 8:03 AM</span>
+            </div>
+            <div style="background:#2f3136;border-left:4px solid #3fb950;border-radius:4px;padding:10px 14px;margin-left:40px">
+              <div style="color:#3fb950;font-size:11px;font-weight:700;margin-bottom:4px">🏆 SPORTS SIGNAL</div>
+              <div style="color:#e6edf3;font-size:13px;font-weight:600">Top trader entered NBA Finals market — YES heavy</div>
+              <div style="color:#72767d;font-size:12px;margin-top:4px">Price: $0.44 · 24h vol: $890K · <span style="color:#3fb950">+28% this week</span></div>
+            </div>
+          </div>
+
+          <div class="dc-msg" style="animation:slideUp .5s ease .7s both">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#3fb950,#1e6b2a);display:flex;align-items:center;justify-content:center;font-size:14px">🐱</div>
+              <span style="color:#3fb950;font-size:13px;font-weight:700">CopyCat Agent</span>
+              <span style="color:#72767d;font-size:11px">Today at 8:03 AM</span>
+            </div>
+            <div style="background:#2f3136;border-left:4px solid #5865f2;border-radius:4px;padding:10px 14px;margin-left:40px">
+              <div style="color:#5865f2;font-size:11px;font-weight:700;margin-bottom:4px">📈 ECONOMICS SIGNAL</div>
+              <div style="color:#e6edf3;font-size:13px;font-weight:600">Volume spike: Fed rate cut July — 3× avg volume</div>
+              <div style="color:#72767d;font-size:12px;margin-top:4px">Price: $0.38 · 24h vol: $3.1M · <span style="color:#f0a500">+19% this week</span></div>
+            </div>
+          </div>
+
+        </div>
+        <!-- Input bar -->
+        <div style="background:#40444b;margin:0 16px 16px;border-radius:8px;padding:10px 16px;display:flex;align-items:center;gap:8px">
+          <span style="color:#72767d;font-size:13px">Message #alerts-all</span>
+          <span style="margin-left:auto;color:#72767d;font-size:11px">Members only</span>
+        </div>
+      </div>
+
+      <!-- Right: value props -->
+      <div style="display:flex;flex-direction:column;gap:28px">
+        <div style="display:flex;gap:16px;align-items:flex-start">
+          <div style="width:44px;height:44px;border-radius:12px;background:rgba(240,165,0,.12);border:1px solid rgba(240,165,0,.25);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🔔</div>
+          <div>
+            <div style="font-size:16px;font-weight:700;margin-bottom:4px">Daily Morning Brief</div>
+            <div style="color:var(--muted);font-size:14px;line-height:1.5">Every morning before markets get busy, the agent posts the top signals — which traders moved, on which markets, and why it matters.</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;align-items:flex-start">
+          <div style="width:44px;height:44px;border-radius:12px;background:rgba(88,101,242,.12);border:1px solid rgba(88,101,242,.25);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">📡</div>
+          <div>
+            <div style="font-size:16px;font-weight:700;margin-bottom:4px">Category Channels</div>
+            <div style="color:var(--muted);font-size:14px;line-height:1.5">Alerts routed by category — crypto, politics, sports, economics. Follow only what you care about.</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;align-items:flex-start">
+          <div style="width:44px;height:44px;border-radius:12px;background:rgba(63,185,80,.12);border:1px solid rgba(63,185,80,.25);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">💬</div>
+          <div>
+            <div style="font-size:16px;font-weight:700;margin-bottom:4px">Free Community Always Open</div>
+            <div style="color:var(--muted);font-size:14px;line-height:1.5">No paywall on the community. Talk markets, share wins, ask questions — the alerts channel is the paid part.</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;align-items:flex-start">
+          <div style="width:44px;height:44px;border-radius:12px;background:rgba(248,81,73,.12);border:1px solid rgba(248,81,73,.25);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🤖</div>
+          <div>
+            <div style="font-size:16px;font-weight:700;margin-bottom:4px">Fully Autonomous Agent</div>
+            <div style="color:var(--muted);font-size:14px;line-height:1.5">No humans scheduling posts. The bot runs 24/7, monitors smart money, and posts alerts the moment something moves.</div>
+          </div>
+        </div>
+        <a href="https://discord.gg/4tZqtuYh" target="_blank" rel="noopener"
+          style="display:inline-flex;align-items:center;gap:10px;background:#5865f2;color:#fff;font-size:16px;font-weight:700;padding:14px 28px;border-radius:10px;text-decoration:none;width:fit-content;transition:background .2s"
+          onmouseover="this.style.background='#4752c4'" onmouseout="this.style.background='#5865f2'">
+          <svg width="20" height="16" viewBox="0 0 71 55" fill="#fff" xmlns="http://www.w3.org/2000/svg"><path d="M60.1 4.9A58.5 58.5 0 0 0 45.6.9a.2.2 0 0 0-.2.1 40.8 40.8 0 0 0-1.8 3.7 54 54 0 0 0-16.2 0A37.5 37.5 0 0 0 25.6 1a.2.2 0 0 0-.2-.1A58.4 58.4 0 0 0 10.9 4.9a.2.2 0 0 0-.1.1C1.6 18.1-.9 31 .3 43.6a.2.2 0 0 0 .1.2 58.8 58.8 0 0 0 17.7 8.9.2.2 0 0 0 .2-.1 42 42 0 0 0 3.6-5.9.2.2 0 0 0-.1-.3 38.7 38.7 0 0 1-5.5-2.6.2.2 0 0 1 0-.4l1.1-.8a.2.2 0 0 1 .2 0c11.5 5.3 24 5.3 35.3 0a.2.2 0 0 1 .2 0l1.1.8a.2.2 0 0 1 0 .4 36.2 36.2 0 0 1-5.5 2.6.2.2 0 0 0-.1.3 47.1 47.1 0 0 0 3.6 5.9.2.2 0 0 0 .2.1 58.7 58.7 0 0 0 17.8-8.9.2.2 0 0 0 .1-.2c1.4-14.9-2.4-27.7-10.1-39.1a.2.2 0 0 0-.1 0ZM23.7 36.2c-3.5 0-6.4-3.2-6.4-7.2s2.8-7.2 6.4-7.2c3.6 0 6.5 3.3 6.4 7.2 0 3.9-2.8 7.2-6.4 7.2Zm23.6 0c-3.5 0-6.4-3.2-6.4-7.2s2.8-7.2 6.4-7.2c3.6 0 6.5 3.3 6.4 7.2 0 3.9-2.8 7.2-6.4 7.2Z"/></svg>
+          Join the Discord — Free
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+@keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.dc-msg{animation-fill-mode:both}
+@media(max-width:768px){#discord .section-grid{grid-template-columns:1fr!important}}
+</style>
+
+<!-- Pricing -->
+<section class="section" id="pricing">
+  <div class="section-label">Pricing</div>
+  <h2 class="section-title">Simple, transparent pricing</h2>
+  <p class="section-sub">Start monthly or go Pro for deeper analytics and more traders.</p>
+  <div class="pricing">
+    <div class="price-card">
+      <div class="price-name">Monthly</div>
+      <div class="price-amount"><sup>$</sup>49</div>
+      <div class="price-cadence">per month · cancel anytime</div>
+      <ul class="price-features">
+        <li>Copy top 5 traders automatically</li>
+        <li>Real-time dashboard</li>
+        <li>$10 flat per copied trade</li>
+        <li>Daily loss protection</li>
+        <li>Trade history log</li>
+        <li class="locked">Pro analytics &amp; charts</li>
+        <li class="locked">Custom trade sizing</li>
+        <li class="locked">Up to 20 traders</li>
+      </ul>
+      <a href="https://buy.stripe.com/9B6fZaa0o8Amgv948N0Jq01" class="price-btn green">Get Monthly →</a>
+    </div>
+    <div class="price-card featured">
+      <div class="featured-badge">⚡ Best Value — 2 months free</div>
+      <div class="price-name">Pro</div>
+      <div class="price-amount"><sup>$</sup>294</div>
+      <div class="price-cadence">one-time · yours forever</div>
+      <ul class="price-features">
+        <li>Copy up to 20 traders</li>
+        <li>Real-time dashboard</li>
+        <li>Custom trade sizing per trader</li>
+        <li>Daily loss protection</li>
+        <li>Full trade history log</li>
+        <li>Pro analytics &amp; P&L charts</li>
+        <li>Per-trader performance breakdown</li>
+        <li>Priority support</li>
+      </ul>
+      <a href="https://buy.stripe.com/9B628ka0oeYKen17kZ0Jq02" class="price-btn purple">Get Pro →</a>
+      <p class="price-note">Equivalent to 6 months · never pay again</p>
+    </div>
+  </div>
+  <div class="addon coming-soon-card">
+    <div class="addon-info" style="flex:1">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <h4 style="margin:0">🤖 Kalshi Market Making Bot — Pro Add-on</h4>
+        <span class="coming-soon-badge">⏳ Coming Soon</span>
+      </div>
+      <p>Automatically quotes bid/ask spreads across all liquid Kalshi markets 24/7. Requires CopyCat Pro.</p>
+      <div class="waitlist-row">
+        <input type="email" id="wl1-email" placeholder="Enter your email for early access" />
+        <button class="waitlist-btn" onclick="joinWaitlist('wl1-email','wl1-sent')">Notify Me</button>
+        <span class="waitlist-sent" id="wl1-sent">✓ You're on the list!</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+      <div class="addon-price" style="color:var(--muted)">$99 <span>one-time</span></div>
+    </div>
+  </div>
+  <div class="addon coming-soon-card" style="margin-top:12px">
+    <div class="addon-info" style="flex:1">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+        <h4 style="margin:0">📈 Kalshi Trading Bot — Standalone</h4>
+        <span class="coming-soon-badge">⏳ Coming Soon</span>
+      </div>
+      <p>Just the Kalshi market maker, no CopyCat required. Runs independently on all liquid Kalshi markets 24/7.</p>
+      <div class="waitlist-row">
+        <input type="email" id="wl2-email" placeholder="Enter your email for early access" />
+        <button class="waitlist-btn" onclick="joinWaitlist('wl2-email','wl2-sent')">Notify Me</button>
+        <span class="waitlist-sent" id="wl2-sent">✓ You're on the list!</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+      <div class="addon-price" style="color:var(--muted)">$199 <span>one-time</span></div>
+    </div>
+  </div>
+
+  <!-- Discord membership addon -->
+  <div class="addon" style="margin-top:12px;border-color:rgba(88,101,242,.35);background:linear-gradient(135deg,rgba(88,101,242,.07),rgba(13,17,23,0))">
+    <div class="addon-info">
+      <h4 style="color:#7289da">
+        <svg width="20" height="16" viewBox="0 0 71 55" fill="#7289da" style="vertical-align:middle;margin-right:6px" xmlns="http://www.w3.org/2000/svg"><path d="M60.1 4.9A58.5 58.5 0 0 0 45.6.9a.2.2 0 0 0-.2.1 40.8 40.8 0 0 0-1.8 3.7 54 54 0 0 0-16.2 0A37.5 37.5 0 0 0 25.6 1a.2.2 0 0 0-.2-.1A58.4 58.4 0 0 0 10.9 4.9a.2.2 0 0 0-.1.1C1.6 18.1-.9 31 .3 43.6a.2.2 0 0 0 .1.2 58.8 58.8 0 0 0 17.7 8.9.2.2 0 0 0 .2-.1 42 42 0 0 0 3.6-5.9.2.2 0 0 0-.1-.3 38.7 38.7 0 0 1-5.5-2.6.2.2 0 0 1 0-.4l1.1-.8a.2.2 0 0 1 .2 0c11.5 5.3 24 5.3 35.3 0a.2.2 0 0 1 .2 0l1.1.8a.2.2 0 0 1 0 .4 36.2 36.2 0 0 1-5.5 2.6.2.2 0 0 0-.1.3 47.1 47.1 0 0 0 3.6 5.9.2.2 0 0 0 .2.1 58.7 58.7 0 0 0 17.8-8.9.2.2 0 0 0 .1-.2c1.4-14.9-2.4-27.7-10.1-39.1a.2.2 0 0 0-.1 0ZM23.7 36.2c-3.5 0-6.4-3.2-6.4-7.2s2.8-7.2 6.4-7.2c3.6 0 6.5 3.3 6.4 7.2 0 3.9-2.8 7.2-6.4 7.2Zm23.6 0c-3.5 0-6.4-3.2-6.4-7.2s2.8-7.2 6.4-7.2c3.6 0 6.5 3.3 6.4 7.2 0 3.9-2.8 7.2-6.4 7.2Z"/></svg>
+        Discord Intelligence Membership
+      </h4>
+      <p>Daily smart money alerts every morning — crypto, politics, sports, economics. Posted to category channels before markets open. No bot required.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+        <span style="background:rgba(88,101,242,.15);border:1px solid rgba(88,101,242,.3);color:#7289da;font-size:12px;font-weight:600;padding:3px 10px;border-radius:12px">🔔 Daily morning brief</span>
+        <span style="background:rgba(88,101,242,.15);border:1px solid rgba(88,101,242,.3);color:#7289da;font-size:12px;font-weight:600;padding:3px 10px;border-radius:12px">📡 Live market signals</span>
+        <span style="background:rgba(88,101,242,.15);border:1px solid rgba(88,101,242,.3);color:#7289da;font-size:12px;font-weight:600;padding:3px 10px;border-radius:12px">📊 Leaderboard updates</span>
+        <span style="background:rgba(88,101,242,.15);border:1px solid rgba(88,101,242,.3);color:#7289da;font-size:12px;font-weight:600;padding:3px 10px;border-radius:12px">💬 Private community</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+      <div class="addon-price" style="color:#7289da">$49 <span>/ month</span></div>
+      <a href="https://discord.gg/4tZqtuYh" target="_blank" rel="noopener"
+        style="display:inline-flex;align-items:center;gap:8px;background:#5865f2;color:#fff;font-size:14px;font-weight:700;padding:10px 22px;border-radius:8px;text-decoration:none;white-space:nowrap;transition:background .2s"
+        onmouseover="this.style.background='#4752c4'" onmouseout="this.style.background='#5865f2'">
+        Join Discord →
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="section" id="faq">
+  <div class="section-label">FAQ</div>
+  <h2 class="section-title">Questions</h2>
+  <p class="section-sub" style="margin-bottom:40px">Everything you need to know.</p>
+  <div class="faq">
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">Do I need any coding experience? <span class="faq-icon">+</span></div>
+      <div class="faq-a">No. CopyCat installs with a single command and runs from a dashboard in your browser. No terminal, no coding, no config files.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">What is Polymarket? <span class="faq-icon">+</span></div>
+      <div class="faq-a">Polymarket is the world's largest prediction market — a platform where people bet real money on the outcome of world events. Top traders regularly make millions per week.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">How does copy trading work? <span class="faq-icon">+</span></div>
+      <div class="faq-a">CopyCat tracks the top 10 traders by weekly profit. Every time one of them places a trade, CopyCat automatically places the same trade in your account — $10 flat per trade by default.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">Is my money safe? <span class="faq-icon">+</span></div>
+      <div class="faq-a">CopyCat has a built-in daily loss limit (default $100/day) that automatically stops trading if things go wrong. You control your own wallet at all times — CopyCat never holds your funds.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">What's the difference between Monthly and Pro? <span class="faq-icon">+</span></div>
+      <div class="faq-a">Monthly copies the top 5 traders with flat $10 trades. Pro copies up to 20 traders, lets you customize trade sizing per trader, and unlocks the analytics dashboard with P&L charts and per-trader breakdowns.</div>
+    </div>
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">What computer do I need? <span class="faq-icon">+</span></div>
+      <div class="faq-a">CopyCat runs on Mac and Windows with Python 3.9+. It runs locally on your machine — no cloud subscription required.</div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<section class="section" style="text-align:center;padding:80px 20px">
+  <div style="max-width:560px;margin:0 auto;background:linear-gradient(135deg,rgba(88,101,242,.12),rgba(63,185,80,.08));border:1px solid rgba(88,101,242,.3);border-radius:20px;padding:52px 40px">
+    <div style="font-size:48px;margin-bottom:16px">💬</div>
+    <h2 style="font-size:28px;font-weight:700;margin-bottom:12px">Join the Community</h2>
+    <p style="color:var(--muted);font-size:16px;line-height:1.6;margin-bottom:32px">Get setup help, share wins, discuss markets, and get early access to new features. 100% free to join.</p>
+    <a href="https://discord.gg/4tZqtuYh" target="_blank" rel="noopener"
+      style="display:inline-flex;align-items:center;gap:10px;background:#5865f2;color:#fff;font-size:16px;font-weight:700;padding:14px 32px;border-radius:10px;text-decoration:none;transition:background .2s"
+      onmouseover="this.style.background='#4752c4'" onmouseout="this.style.background='#5865f2'">
+      <svg width="22" height="17" viewBox="0 0 71 55" fill="#fff" xmlns="http://www.w3.org/2000/svg"><path d="M60.1 4.9A58.5 58.5 0 0 0 45.6.9a.2.2 0 0 0-.2.1 40.8 40.8 0 0 0-1.8 3.7 54 54 0 0 0-16.2 0A37.5 37.5 0 0 0 25.6 1a.2.2 0 0 0-.2-.1A58.4 58.4 0 0 0 10.9 4.9a.2.2 0 0 0-.1.1C1.6 18.1-.9 31 .3 43.6a.2.2 0 0 0 .1.2 58.8 58.8 0 0 0 17.7 8.9.2.2 0 0 0 .2-.1 42 42 0 0 0 3.6-5.9.2.2 0 0 0-.1-.3 38.7 38.7 0 0 1-5.5-2.6.2.2 0 0 1 0-.4l1.1-.8a.2.2 0 0 1 .2 0c11.5 5.3 24 5.3 35.3 0a.2.2 0 0 1 .2 0l1.1.8a.2.2 0 0 1 0 .4 36.2 36.2 0 0 1-5.5 2.6.2.2 0 0 0-.1.3 47.1 47.1 0 0 0 3.6 5.9.2.2 0 0 0 .2.1 58.7 58.7 0 0 0 17.8-8.9.2.2 0 0 0 .1-.2c1.4-14.9-2.4-27.7-10.1-39.1a.2.2 0 0 0-.1 0ZM23.7 36.2c-3.5 0-6.4-3.2-6.4-7.2s2.8-7.2 6.4-7.2c3.6 0 6.5 3.3 6.4 7.2 0 3.9-2.8 7.2-6.4 7.2Zm23.6 0c-3.5 0-6.4-3.2-6.4-7.2s2.8-7.2 6.4-7.2c3.6 0 6.5 3.3 6.4 7.2 0 3.9-2.8 7.2-6.4 7.2Z"/></svg>
+      Join Discord — It's Free
+    </a>
+  </div>
+</section>
+
+<footer>
+  <div class="logo" style="margin-bottom:16px">Copy<span style="color:#3fb950">Cat</span></div>
+  <p style="margin-bottom:8px">
+    <a href="https://discord.gg/4tZqtuYh" target="_blank" rel="noopener" style="color:#5865f2;text-decoration:none;font-weight:600;margin-right:20px">Discord</a>
+    <a href="mailto:support@adam-works.com" style="color:var(--muted);text-decoration:none">support@adam-works.com</a>
+  </p>
+  <p>© 2026 CopyCat</p>
+</footer>
+
+<script>
+function toggleFaq(el) {
+  const item = el.parentElement;
+  item.classList.toggle('open');
+}
+
+function joinWaitlist(inputId, sentId) {
+  const email = document.getElementById(inputId).value.trim();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    document.getElementById(inputId).focus();
+    return;
+  }
+  // Store locally and show confirmation (webhook endpoint can be wired later)
+  const stored = JSON.parse(localStorage.getItem('cc_waitlist') || '[]');
+  if (!stored.includes(email)) stored.push(email);
+  localStorage.setItem('cc_waitlist', JSON.stringify(stored));
+  // POST to webhook server waitlist endpoint
+  fetch('https://copycat-production-655e.up.railway.app/waitlist', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({email, product: inputId === 'wl1-email' ? 'kalshi_pro_addon' : 'kalshi_standalone'})
+  }).catch(()=>{});
+  document.getElementById(inputId).style.display = 'none';
+  const btn = document.getElementById(inputId).nextElementSibling || document.querySelector(`[onclick*="${inputId}"]`);
+  document.querySelectorAll(`[onclick*="${inputId}"]`).forEach(b => b.style.display='none');
+  const sent = document.getElementById(sentId);
+  sent.style.display = 'inline';
+}
+</script>
+</body>
+</html>

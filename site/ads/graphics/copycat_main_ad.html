@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Rajdhani:wght@600&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { width: 1080px; height: 1080px; background: #0d1117; overflow: hidden; }
+canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1080" height="1080"></canvas>
+<script>
+const C  = document.getElementById('c');
+const cx = C.getContext('2d');
+const W  = 1080, H = 1080;
+
+// ─── Timing ────────────────────────────────────────────────────────────────
+const TOTAL  = 15;   // seconds per loop
+const SCENE  = 11;   // scene ends, end-card begins
+const SPEED  = 100;  // background scroll px/s
+
+// ─── State ─────────────────────────────────────────────────────────────────
+let prev = null, scroll = 0, walkAcc = 0;
+let bills = [], lastBill = 0, collected = 0;
+let picking = false, pickT = 0, pickIdx = -1;
+const PICK_DUR = 0.55;
+
+// Fixed screen positions
+const MAN_X = 690, CAT_X = 455, GND = 800;
+
+// ─── Helpers ───────────────────────────────────────────────────────────────
+function lerp(a, b, t) { return a + (b - a) * t; }
+function ease(t) { return t < .5 ? 2*t*t : -1+(4-2*t)*t; }
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+// ─── Bill particles ────────────────────────────────────────────────────────
+function spawnBill() {
+  bills.push({
+    x: MAN_X + 80 + (Math.random()-.5)*18,
+    y: GND - 90,
+    vx: -(Math.random()*1.8 + .6),
+    vy: -(Math.random()*5 + 2),
+    rot: (Math.random()-.5)*.7,
+    rs: (Math.random()-.5)*.09,
+    sc: .75 + Math.random()*.35,
+    settled: false, collected: false, alpha: 1,
+  });
+}
+
+function updateBills(dt) {
+  for (let i = bills.length - 1; i >= 0; i--) {
+    const b = bills[i];
+    if (b.collected) { bills.splice(i, 1); continue; }
+    if (!b.settled) {
+      b.vy += 480 * dt;
+      b.x  += (b.vx - SPEED) * dt;
+      b.y  += b.vy * dt;
+      b.rot += b.rs;
+      if (b.y >= GND - 7) { b.y = GND - 7; b.vy = 0; b.vx = 0; b.settled = true; }
+    } else { b.x -= SPEED * dt; }
+    if (b.x < -80) bills.splice(i, 1);
+  }
+}
+
+function checkPickup() {
+  if (picking) return;
+  for (let i = 0; i < bills.length; i++) {
+    const b = bills[i];
+    if (b.settled && !b.collected && Math.abs(b.x - CAT_X) < 80) {
+      picking = true; pickT = 0; pickIdx = i; return;
+    }
+  }
+}
+
+// ─── DRAW: Background ──────────────────────────────────────────────────────
+function drawBg() {
+  // Sky gradient
+  const sky = cx.createLinearGradient(0, 0, 0, GND);
+  sky.addColorStop(0, '#03050a');
+  sky.addColorStop(.55, '#080e18');
+  sky.addColorStop(1, '#0c1420');
+  cx.fillStyle = sky; cx.fillRect(0, 0, W, H);
+
+  // Stars
+  cx.fillStyle = 'rgba(255,255,255,.6)';
+  [[90,55],[240,30],[390,80],[540,48],[680,72],[840,38],[980,65],
+   [140,130],[310,115],[500,125],[730,110],[900,140],[60,190],[460,175],[780,195]
+  ].forEach(([sx,sy]) => {
+    const px = ((sx - scroll*.045) % (W+100) + W+100) % (W+100);
+    cx.beginPath(); cx.arc(px, sy, 1.4, 0, Math.PI*2); cx.fill();
+  });
+
+  // Moon glow
+  cx.save();
+  const mg = cx.createRadialGradient(920, 95, 0, 920, 95, 80);
+  mg.addColorStop(0, 'rgba(255,245,200,.18)'); mg.addColorStop(1, 'transparent');
+  cx.fillStyle = mg; cx.fillRect(840, 15, 160, 160);
+  cx.fillStyle = '#ddd8c0'; cx.beginPath(); cx.arc(920, 95, 44, 0, Math.PI*2); cx.fill();
+  cx.fillStyle = '#080e18'; cx.beginPath(); cx.arc(936, 83, 40, 0, Math.PI*2); cx.fill();
+  cx.restore();
+
+  // City silhouette
+  const bldgs = [
+    {x:0,w:120,h:240},{x:130,w:85,h:320},{x:225,w:105,h:200},{x:340,w:145,h:360},
+    {x:495,w:95,h:270},{x:600,w:115,h:330},{x:725,w:135,h:250},{x:870,w:108,h:290},{x:988,w:130,h:220}
+  ];
+  bldgs.forEach(b => {
+    const bx = ((b.x - scroll*.17) % (W+300) + W+300) % (W+300) - 200;
+    const by = GND - 35 - b.h;
+    cx.fillStyle = '#0b1220'; cx.fillRect(bx, by, b.w, b.h);
+    // Windows
+    for (let wy = by+18; wy < GND-50; wy += 32) {
+      for (let wx = bx+12; wx < bx+b.w-12; wx += 24) {
+        const lit = Math.sin(wx*2.3+wy*4.1) > .15;
+        cx.fillStyle = lit ? 'rgba(255,220,80,.22)' : 'rgba(60,80,120,.08)';
+        cx.fillRect(wx, wy, 11, 16);
+      }
+    }
+  });
+
+  // Road surface
+  cx.fillStyle = '#0e141e'; cx.fillRect(0, GND - 32, W, 32);
+  cx.fillStyle = '#1a2336'; cx.fillRect(0, GND, W, H - GND);
+
+  // Sidewalk tiles
+  const tW = 140;
+  const off = (scroll % tW + tW) % tW;
+  cx.strokeStyle = '#232d3f'; cx.lineWidth = 1.5;
+  for (let tx = -off; tx < W + tW; tx += tW) {
+    cx.beginPath(); cx.moveTo(tx, GND); cx.lineTo(tx, H); cx.stroke();
+  }
+  // Curb
+  cx.strokeStyle = '#2e3d55'; cx.lineWidth = 4;
+  cx.beginPath(); cx.moveTo(0, GND); cx.lineTo(W, GND); cx.stroke();
+
+  // Lamp posts (parallax)
+  [120, 420, 720, 1020].forEach(lx => {
+    const px = ((lx - scroll*.9) % (W+200) + W+200) % (W+200) - 100;
+    cx.fillStyle = '#2a3548'; cx.fillRect(px - 4, GND - 210, 8, 210);
+    cx.fillStyle = '#3a4a62'; cx.fillRect(px - 20, GND - 215, 40, 12);
+    const glow = cx.createRadialGradient(px, GND - 210, 0, px, GND - 210, 55);
+    glow.addColorStop(0, 'rgba(255,230,130,.18)'); glow.addColorStop(1, 'transparent');
+    cx.fillStyle = glow; cx.fillRect(px - 55, GND - 265, 110, 110);
+    cx.fillStyle = 'rgba(255,230,130,.7)';
+    cx.beginPath(); cx.arc(px, GND - 210, 6, 0, Math.PI*2); cx.fill();
+  });
+}
+
+// ─── DRAW: Dollar bill ─────────────────────────────────────────────────────
+function drawBill(x, y, rot, sc, alpha) {
+  cx.save();
+  cx.globalAlpha = alpha;
+  cx.translate(x, y); cx.rotate(rot); cx.scale(sc, sc);
+  cx.shadowColor = 'rgba(63,185,80,.35)'; cx.shadowBlur = 6;
+  cx.fillStyle = '#1d6b3a'; cx.fillRect(-26, -12, 52, 24);
+  cx.shadowBlur = 0;
+  cx.strokeStyle = '#2ecc71'; cx.lineWidth = 1;
+  cx.strokeRect(-22, -8, 44, 16);
+  cx.fillStyle = '#27ae60'; cx.fillRect(-10, -8, 20, 16);
+  cx.fillStyle = '#a8e6c0';
+  cx.font = 'bold 10px serif'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+  cx.fillText('$100', 0, 0);
+  cx.restore();
+}
+
+// ─── DRAW: Rich man ────────────────────────────────────────────────────────
+function drawMan(x, ph, t) {
+  const ls  = Math.sin(ph * Math.PI * 2);
+  const bob = Math.abs(ls) * 8;
+
+  cx.save(); cx.translate(x, GND - bob);
+
+  // Shadow
+  cx.fillStyle = 'rgba(0,0,0,.45)';
+  cx.beginPath(); cx.ellipse(8, 6, 68, 15, 0, 0, Math.PI*2); cx.fill();
+
+  // ── Legs ──
+  const lW = 28, lH = 72;
+  // back leg
+  cx.save(); cx.translate(-26, -30); cx.rotate(ls*.38);
+  const lg1 = cx.createLinearGradient(0,0,0,lH);
+  lg1.addColorStop(0,'#14143a'); lg1.addColorStop(1,'#0d0d28');
+  cx.fillStyle = lg1; cx.fillRect(-lW/2, 0, lW, lH);
+  cx.fillStyle = '#0a0a1e';
+  cx.beginPath(); cx.ellipse(0, lH+9, 20, 11, 0, 0, Math.PI*2); cx.fill();
+  cx.restore();
+  // front leg
+  cx.save(); cx.translate(18, -30); cx.rotate(-ls*.38);
+  const lg2 = cx.createLinearGradient(0,0,0,lH);
+  lg2.addColorStop(0,'#1c1c50'); lg2.addColorStop(1,'#10103a');
+  cx.fillStyle = lg2; cx.fillRect(-lW/2, 0, lW, lH);
+  cx.fillStyle = '#111132';
+  cx.beginPath(); cx.ellipse(4, lH+9, 22, 12, 0, 0, Math.PI*2); cx.fill();
+  cx.restore();
+
+  // ── Fat body ──
+  const bodyG = cx.createRadialGradient(8,-105,20, 8,-105,90);
+  bodyG.addColorStop(0,'#1e1e50'); bodyG.addColorStop(1,'#0e0e28');
+  cx.fillStyle = bodyG;
+  cx.beginPath(); cx.ellipse(8, -108, 84, 94, 0, 0, Math.PI*2); cx.fill();
+
+  // belly highlight
+  cx.fillStyle = 'rgba(255,255,255,.04)';
+  cx.beginPath(); cx.ellipse(22, -96, 60, 70, .1, 0, Math.PI*2); cx.fill();
+
+  // Dark red vest
+  const vestG = cx.createRadialGradient(12,-110,10, 12,-110,55);
+  vestG.addColorStop(0,'#8b0000'); vestG.addColorStop(1,'#5a0000');
+  cx.fillStyle = vestG;
+  cx.beginPath(); cx.ellipse(12,-110, 48, 58, 0, 0, Math.PI*2); cx.fill();
+
+  // Gold watch chain
+  cx.strokeStyle = '#d4af37'; cx.lineWidth = 2.5; cx.lineCap = 'round';
+  cx.beginPath(); cx.moveTo(-12,-82); cx.quadraticCurveTo(24,-70, 46,-84); cx.stroke();
+  cx.fillStyle = '#d4af37'; cx.beginPath(); cx.arc(46,-84,5,0,Math.PI*2); cx.fill();
+
+  // White shirt
+  cx.fillStyle = '#f0ece0'; cx.fillRect(-14,-172, 28, 52);
+
+  // Tie
+  cx.fillStyle = '#c0100c';
+  cx.beginPath();
+  cx.moveTo(-10,-166); cx.lineTo(10,-166); cx.lineTo(14,-100);
+  cx.lineTo(0,-84); cx.lineTo(-14,-100); cx.closePath(); cx.fill();
+  cx.fillStyle = '#8b0a08';
+  cx.fillRect(-7,-148,16,6); cx.fillRect(-7,-128,16,6);
+
+  // Bills in pocket — animated wave
+  const bw = Math.sin(t*2.6)*.06;
+  [[78,-88,-0.28+bw,'#1a6b36','#2ecc71'],
+   [68,-82, 0.10,   '#27ae60','#58d68d'],
+   [73,-95,-0.06+bw*.5,'#1e8449','#3fb950']
+  ].forEach(([bx,by,br,c1,c2]) => {
+    cx.save(); cx.translate(bx,by); cx.rotate(br);
+    cx.fillStyle=c1; cx.fillRect(-9,-28,24,36);
+    cx.fillStyle=c2; cx.fillRect(-9,-28,24,7);
+    cx.restore();
+  });
+
+  // ── Left arm (cane) ──
+  cx.save(); cx.translate(-80,-145); cx.rotate(-ls*.28+.08);
+  cx.fillStyle='#14143a'; cx.fillRect(-12,0,24,80);
+  cx.fillStyle='#F5C5A3'; cx.beginPath(); cx.arc(0,84,14,0,Math.PI*2); cx.fill();
+  cx.strokeStyle='#5D3A1A'; cx.lineWidth=9; cx.lineCap='round';
+  cx.beginPath(); cx.moveTo(0,94); cx.lineTo(-6,165); cx.stroke();
+  cx.strokeStyle='#d4af37'; cx.lineWidth=8;
+  cx.beginPath(); cx.arc(-18,100,17,Math.PI*.5,Math.PI*1.5); cx.stroke();
+  cx.restore();
+
+  // ── Right arm ──
+  cx.save(); cx.translate(70,-145); cx.rotate(ls*.28-.08);
+  cx.fillStyle='#14143a'; cx.fillRect(-12,0,24,80);
+  cx.fillStyle='#F5C5A3'; cx.beginPath(); cx.arc(0,84,14,0,Math.PI*2); cx.fill();
+  cx.restore();
+
+  // ── Head ──
+  const headG = cx.createRadialGradient(2,-198,5,2,-198,56);
+  headG.addColorStop(0,'#FDBCB4'); headG.addColorStop(1,'#E8967A');
+  cx.fillStyle = headG;
+  cx.beginPath(); cx.ellipse(2,-200,54,62,0,0,Math.PI*2); cx.fill();
+
+  // Jowls
+  cx.fillStyle='rgba(244,160,144,.7)';
+  cx.beginPath(); cx.ellipse(-44,-192,26,22,0,0,Math.PI*2); cx.fill();
+  cx.beginPath(); cx.ellipse(46,-192,26,22,0,0,Math.PI*2); cx.fill();
+
+  // Double chin
+  cx.fillStyle='#EDAA98';
+  cx.beginPath(); cx.ellipse(6,-158,40,22,0,0,Math.PI*2); cx.fill();
+
+  // Ear
+  cx.fillStyle='#FDBCB4'; cx.beginPath(); cx.ellipse(-56,-198,12,18,0,0,Math.PI*2); cx.fill();
+  cx.fillStyle='#D4836A'; cx.beginPath(); cx.ellipse(-56,-198,6,11,0,0,Math.PI*2); cx.fill();
+
+  // Eyebrows (bushy gray)
+  cx.fillStyle='#aaa';
+  [[-36,-228,-0.12],[ 14,-228, 0.12]].forEach(([ex,ey,a]) => {
+    cx.save(); cx.translate(ex+14,ey+4); cx.rotate(a);
+    cx.beginPath(); cx.ellipse(0,0,18,8,0,0,Math.PI*2); cx.fill();
+    cx.restore();
+  });
+
+  // Eyes
+  cx.fillStyle='#1a1a2e';
+  cx.beginPath(); cx.ellipse(-18,-212,8.5,8.5,0,0,Math.PI*2); cx.fill();
+  cx.beginPath(); cx.ellipse(24,-212,8.5,8.5,0,0,Math.PI*2); cx.fill();
+  cx.fillStyle='white';
+  cx.beginPath(); cx.arc(-15,-215,3,0,Math.PI*2); cx.fill();
+  cx.beginPath(); cx.arc(27,-215,3,0,Math.PI*2); cx.fill();
+
+  // Eye bags
+  cx.fillStyle='rgba(180,120,90,.5)';
+  cx.beginPath(); cx.ellipse(-18,-203,10,5,0,0,Math.PI,true); cx.fill();
+  cx.beginPath(); cx.ellipse(24,-203,10,5,0,0,Math.PI,true); cx.fill();
+
+  // Monocle
+  cx.strokeStyle='#d4af37'; cx.lineWidth=2.5;
+  cx.beginPath(); cx.arc(24,-211,14,0,Math.PI*2); cx.stroke();
+  cx.beginPath(); cx.moveTo(38,-203); cx.lineTo(48,-184); cx.stroke();
+
+  // Nose
+  cx.fillStyle='#C86050';
+  cx.beginPath(); cx.ellipse(4,-196,15,13,0,0,Math.PI*2); cx.fill();
+  cx.fillStyle='#AA4038';
+  cx.beginPath(); cx.ellipse(-4,-200,6.5,6.5,0,0,Math.PI*2); cx.fill();
+  cx.beginPath(); cx.ellipse(12,-200,6.5,6.5,0,0,Math.PI*2); cx.fill();
+
+  // Mustache
+  cx.fillStyle='#e0e0e0';
+  cx.beginPath(); cx.ellipse(-14,-180,19,12,-.2,0,Math.PI*2); cx.fill();
+  cx.beginPath(); cx.ellipse(17,-180,19,12,.2,0,Math.PI*2); cx.fill();
+  cx.fillStyle='#ccc';
+  cx.beginPath(); cx.arc(-31,-175,10,-.5*.5,Math.PI*.5); cx.fill();
+  cx.beginPath(); cx.arc(33,-175,10,Math.PI*.5,Math.PI*1.5); cx.fill();
+
+  // ── Top hat ──
+  cx.fillStyle='#090909';
+  cx.beginPath(); cx.ellipse(2,-260,76,17,0,0,Math.PI*2); cx.fill();
+  const hatG = cx.createLinearGradient(-46,-260,-46,-390);
+  hatG.addColorStop(0,'#111'); hatG.addColorStop(1,'#0a0a0a');
+  cx.fillStyle=hatG;
+  cx.beginPath();
+  cx.moveTo(-50,-260); cx.lineTo(-44,-392); cx.lineTo(50,-392); cx.lineTo(56,-260);
+  cx.closePath(); cx.fill();
+  cx.fillStyle='#d4af37'; cx.fillRect(-48,-280,96,16);
+  cx.fillStyle='#b8860b'; cx.fillRect(-14,-283,28,22);
+  cx.fillStyle='#d4af37'; cx.fillRect(-9,-279,18,14);
+
+  cx.restore();
+}
+
+// ─── DRAW: Gray cat ────────────────────────────────────────────────────────
+function drawCat(x, ph, t, pp) {
+  const ls  = Math.sin(ph * Math.PI * 2);
+  const bob = Math.abs(ls) * 4.5;
+  const tw  = Math.sin(t * 4.8) * 22;
+
+  const env    = pp < .5 ? pp*2 : (1-pp)*2;
+  const crouch = env * 40;
+  const lean   = env * .34;
+
+  cx.save(); cx.translate(x, GND + bob + crouch); cx.rotate(lean);
+
+  // Shadow
+  cx.fillStyle='rgba(0,0,0,.32)';
+  cx.beginPath(); cx.ellipse(0,8,46,11,0,0,Math.PI*2); cx.fill();
+
+  // Tail — green/gold striped Cheshire
+  cx.lineCap='round';
+  cx.strokeStyle='#2ea043'; cx.lineWidth=16;
+  cx.beginPath(); cx.moveTo(-30,-40); cx.quadraticCurveTo(-82,-96+tw,-72,-142+tw); cx.stroke();
+  for (let si=0; si<4; si++) {
+    cx.strokeStyle = si%2===0 ? '#f4d03f' : '#1a6b2a';
+    cx.lineWidth=7;
+    cx.setLineDash([14,14]); cx.lineDashOffset = -si*7;
+    cx.beginPath(); cx.moveTo(-30,-40); cx.quadraticCurveTo(-82,-96+tw,-72,-142+tw); cx.stroke();
+  }
+  cx.setLineDash([]);
+
+  // Back leg — green
+  cx.save(); cx.translate(-26,-22); cx.rotate(ls*.43);
+  const lG1 = cx.createLinearGradient(0,0,0,42);
+  lG1.addColorStop(0,'#3fb950'); lG1.addColorStop(1,'#2ea043');
+  cx.fillStyle=lG1; cx.fillRect(-9,0,18,42);
+  cx.fillStyle='#d4af37'; cx.beginPath(); cx.ellipse(0,47,14,9,0,0,Math.PI*2); cx.fill();
+  cx.restore();
+
+  // Front leg — green
+  cx.save(); cx.translate(20,-22);
+  cx.rotate(-ls*.43 + env*.95);
+  const lG2 = cx.createLinearGradient(0,0,0,42+env*16);
+  lG2.addColorStop(0,'#50c060'); lG2.addColorStop(1,'#2a8040');
+  cx.fillStyle=lG2; cx.fillRect(-9,0,18,42+env*16);
+  cx.fillStyle='#e8c840'; cx.beginPath(); cx.ellipse(0,47+env*16,14,9,0,0,Math.PI*2); cx.fill();
+  cx.restore();
+
+  // Body — green/gold Cheshire
+  const bodyG = cx.createRadialGradient(0,-62,10, 0,-62,60);
+  bodyG.addColorStop(0,'#60d878'); bodyG.addColorStop(1,'#2ea043');
+  cx.fillStyle=bodyG;
+  cx.beginPath(); cx.ellipse(0,-64,58,62,0,0,Math.PI*2); cx.fill();
+  for (let si=0; si<5; si++) {
+    cx.save();
+    cx.beginPath(); cx.ellipse(0,-64,58,62,0,0,Math.PI*2); cx.clip();
+    cx.fillStyle='rgba(244,211,63,.32)';
+    cx.fillRect(-70,-130+si*24, 140, 12);
+    cx.restore();
+  }
+
+  // Belly
+  cx.fillStyle='rgba(200,255,210,.7)';
+  cx.beginPath(); cx.ellipse(10,-58,34,42,0,0,Math.PI*2); cx.fill();
+
+  // ── Arms ──
+  const armSwing = ls * 0.55;  // opposite swing to legs
+  const aG = cx.createLinearGradient(0,0,0,52);
+  aG.addColorStop(0,'#50c060'); aG.addColorStop(1,'#2ea043');
+
+  // Left arm
+  cx.save();
+  cx.translate(-52, -88);
+  cx.rotate(-0.3 - armSwing);
+  cx.fillStyle=aG;
+  cx.beginPath(); cx.roundRect(-8, 0, 16, 52, 8); cx.fill();
+  // Left paw (3 toe beans)
+  cx.fillStyle='#d4af37';
+  cx.beginPath(); cx.ellipse(0, 58, 13, 10, 0, 0, Math.PI*2); cx.fill();
+  cx.fillStyle='#e8c840';
+  cx.beginPath(); cx.ellipse(-10, 54, 7, 6, -0.4, 0, Math.PI*2); cx.fill();
+  cx.beginPath(); cx.ellipse(10,  54, 7, 6,  0.4, 0, Math.PI*2); cx.fill();
+  cx.beginPath(); cx.ellipse(0,   52, 7, 5,    0, 0, Math.PI*2); cx.fill();
+  cx.restore();
+
+  // Right arm
+  cx.save();
+  cx.translate(60, -88);
+  cx.rotate(0.3 + armSwing);
+  cx.fillStyle=aG;
+  cx.beginPath(); cx.roundRect(-8, 0, 16, 52, 8); cx.fill();
+  // Right paw
+  cx.fillStyle='#d4af37';
+  cx.beginPath(); cx.ellipse(0, 58, 13, 10, 0, 0, Math.PI*2); cx.fill();
+  cx.fillStyle='#e8c840';
+  cx.beginPath(); cx.ellipse(-10, 54, 7, 6, -0.4, 0, Math.PI*2); cx.fill();
+  cx.beginPath(); cx.ellipse(10,  54, 7, 6,  0.4, 0, Math.PI*2); cx.fill();
+  cx.beginPath(); cx.ellipse(0,   52, 7, 5,    0, 0, Math.PI*2); cx.fill();
+  cx.restore();
+
+  // Head — green Cheshire
+  const headG = cx.createRadialGradient(8,-130,10, 8,-130,56);
+  headG.addColorStop(0,'#80e890'); headG.addColorStop(1,'#2ea043');
+  cx.fillStyle=headG;
+  cx.beginPath(); cx.arc(8,-130,56,0,Math.PI*2); cx.fill();
+  for (let si=0; si<4; si++) {
+    cx.save();
+    cx.beginPath(); cx.arc(8,-130,56,0,Math.PI*2); cx.clip();
+    cx.fillStyle='rgba(244,211,63,.28)';
+    cx.fillRect(-70,-196+si*26, 150, 13);
+    cx.restore();
+  }
+
+  // Puffy Cheshire cheeks
+  cx.fillStyle='rgba(100,220,120,.5)';
+  cx.beginPath(); cx.ellipse(-42,-120,28,22,0,0,Math.PI*2); cx.fill();
+  cx.beginPath(); cx.ellipse(58,-120,28,22,0,0,Math.PI*2); cx.fill();
+
+  // Ears — poke up from sides of head, behind hat brim (head center 8,-130 radius 56, top ≈ -186)
+  // Left ear: on outer-left side of head
+  cx.fillStyle='#1a8a36';
+  cx.beginPath(); cx.moveTo(-36,-158); cx.lineTo(-44,-200); cx.lineTo(-14,-166); cx.closePath(); cx.fill();
+  cx.fillStyle='#ffb3c1';
+  cx.beginPath(); cx.moveTo(-33,-161); cx.lineTo(-40,-194); cx.lineTo(-17,-168); cx.closePath(); cx.fill();
+  // Right ear: on outer-right side of head
+  cx.fillStyle='#1a8a36';
+  cx.beginPath(); cx.moveTo(30,-166); cx.lineTo(60,-200); cx.lineTo(52,-158); cx.closePath(); cx.fill();
+  cx.fillStyle='#ffb3c1';
+  cx.beginPath(); cx.moveTo(33,-168); cx.lineTo(56,-194); cx.lineTo(49,-161); cx.closePath(); cx.fill();
+
+  // Eyes — $$ signs
+  function dollarEye(ex,ey) {
+    cx.shadowColor='#f1c40f'; cx.shadowBlur=18;
+    cx.fillStyle='#1a0e2a';
+    cx.beginPath(); cx.ellipse(ex,ey,20,20,0,0,Math.PI*2); cx.fill();
+    cx.shadowBlur=0;
+    const irisG = cx.createRadialGradient(ex,ey,2,ex,ey,18);
+    irisG.addColorStop(0,'#ffe066'); irisG.addColorStop(1,'#d4a00a');
+    cx.fillStyle=irisG;
+    cx.beginPath(); cx.ellipse(ex,ey,17,17,0,0,Math.PI*2); cx.fill();
+    cx.fillStyle='rgba(20,10,40,.85)';
+    cx.beginPath(); cx.ellipse(ex,ey,9,12,0,0,Math.PI*2); cx.fill();
+    cx.save();
+    cx.shadowColor='#fff'; cx.shadowBlur=6;
+    cx.fillStyle='#fff';
+    cx.font='bold 18px Georgia,serif';
+    cx.textAlign='center'; cx.textBaseline='middle';
+    cx.fillText('$',ex,ey+1);
+    cx.shadowBlur=0; cx.restore();
+    cx.fillStyle='rgba(255,255,255,.7)';
+    cx.beginPath(); cx.ellipse(ex+6,ey-6,4,5,-.5,0,Math.PI*2); cx.fill();
+  }
+  dollarEye(-16,-133); dollarEye(32,-133);
+
+  // Nose
+  cx.fillStyle='#ff6b8a';
+  cx.beginPath(); cx.moveTo(8,-114); cx.lineTo(-2,-108); cx.lineTo(18,-108); cx.closePath(); cx.fill();
+
+  // Big Cheshire grin
+  cx.save();
+  cx.fillStyle='#fffaf0';
+  cx.beginPath();
+  cx.moveTo(-38,-108); cx.quadraticCurveTo(8,-76, 54,-108); cx.quadraticCurveTo(8,-96, -38,-108);
+  cx.closePath(); cx.fill();
+  cx.strokeStyle='rgba(180,160,160,.5)'; cx.lineWidth=1.5;
+  for (let ti=-2; ti<=2; ti++) {
+    const tx = 8 + ti*14;
+    cx.beginPath(); cx.moveTo(tx,-108+Math.abs(ti)*4); cx.lineTo(tx,-96); cx.stroke();
+  }
+  cx.strokeStyle='#1a6b2a'; cx.lineWidth=3; cx.lineCap='round';
+  cx.beginPath(); cx.moveTo(-42,-110); cx.quadraticCurveTo(8,-68, 58,-110); cx.stroke();
+  cx.beginPath(); cx.moveTo(-38,-108); cx.quadraticCurveTo(8,-100, 54,-108); cx.stroke();
+  cx.restore();
+
+  // Whiskers
+  cx.strokeStyle='rgba(230,255,230,.9)'; cx.lineWidth=2;
+  [[-6,-116,-72,-106],[-6,-116,-70,-120],[-6,-116,-64,-130],
+   [22,-116, 78,-106],[22,-116, 76,-120],[22,-116,70,-130]
+  ].forEach(([x1,y1,x2,y2]) => {
+    cx.beginPath(); cx.moveTo(x1,y1); cx.lineTo(x2,y2); cx.stroke();
+  });
+
+  // ── Green $ hat — sits ON the head (brim at top of head y≈-184) ──
+  // Brim
+  const brimG = cx.createLinearGradient(0,-188,0,-178);
+  brimG.addColorStop(0,'#2db84e'); brimG.addColorStop(1,'#1a8a36');
+  cx.fillStyle=brimG;
+  cx.beginPath(); cx.ellipse(8,-184,50,12,0,0,Math.PI*2); cx.fill();
+  cx.fillStyle='rgba(255,255,255,.13)';
+  cx.beginPath(); cx.ellipse(8,-183,44,8,0,0,Math.PI*2); cx.fill();
+
+  // Hat body
+  const hatG = cx.createLinearGradient(-32,-184,48,-184);
+  hatG.addColorStop(0,'#1d8a38'); hatG.addColorStop(.4,'#2db84e'); hatG.addColorStop(1,'#1d8a38');
+  cx.fillStyle=hatG;
+  cx.beginPath();
+  cx.moveTo(-34,-184); cx.lineTo(-26,-256); cx.lineTo(48,-256); cx.lineTo(56,-184);
+  cx.closePath(); cx.fill();
+
+  // Hat sheen
+  cx.fillStyle='rgba(255,255,255,.07)';
+  cx.beginPath();
+  cx.moveTo(-34,-184); cx.lineTo(-26,-256); cx.lineTo(-8,-256); cx.lineTo(-16,-184);
+  cx.closePath(); cx.fill();
+
+  // Hat band
+  cx.fillStyle='#145c28'; cx.fillRect(-32,-208,84,14);
+
+  // Buckle
+  cx.fillStyle='#d4af37'; cx.fillRect(-4,-212,22,20);
+  cx.fillStyle='#1d8a38'; cx.fillRect(-1,-209,16,14);
+
+  // Gold $ sign
+  cx.save();
+  cx.shadowColor='#f1c40f'; cx.shadowBlur=20;
+  cx.fillStyle='#f4d03f';
+  cx.font='bold 44px Georgia, serif';
+  cx.textAlign='center'; cx.textBaseline='middle';
+  cx.fillText('$', 11, -234);
+  cx.restore();
+
+  cx.restore();
+}
+
+// ─── DRAW: Pick-up effect ──────────────────────────────────────────────────
+function drawPickEffect(x, y, pp) {
+  if (pp < .18 || pp > .88) return;
+  const frac = (pp-.18)/.7;
+  const alpha = frac < .5 ? frac*2 : (1-frac)*2;
+  cx.save();
+  cx.globalAlpha = alpha;
+  // Coins burst
+  const sparkPos = [[0,-1],[.7,-.7],[-.7,-.7],[1,0],[-1,0],[.5,.5],[-.5,.5]];
+  sparkPos.forEach(([sx,sy]) => {
+    cx.fillStyle='#f4d03f';
+    cx.shadowColor='#f4d03f'; cx.shadowBlur=8;
+    cx.beginPath();
+    cx.arc(x+sx*26+sx*frac*14, y+sy*26+sy*frac*14, 5, 0, Math.PI*2);
+    cx.fill();
+  });
+  cx.shadowBlur=0;
+  cx.font='bold 28px -apple-system,sans-serif';
+  cx.textAlign='center';
+  cx.fillStyle='#f4d03f';
+  cx.shadowColor='rgba(0,0,0,.5)'; cx.shadowBlur=4;
+  cx.fillText('+$100', x, y - 55 - frac*30);
+  cx.restore();
+}
+
+// ─── DRAW: Header logo bar ─────────────────────────────────────────────────
+function drawHeader(alpha) {
+  if (alpha <= 0) return;
+  cx.save();
+  cx.globalAlpha = alpha;
+
+  // Dark pill background spanning full width
+  const hg = cx.createLinearGradient(0,0,W,0);
+  hg.addColorStop(0,'rgba(13,17,23,.96)');
+  hg.addColorStop(.5,'rgba(20,26,36,.96)');
+  hg.addColorStop(1,'rgba(13,17,23,.96)');
+  cx.fillStyle=hg; cx.fillRect(0,0,W,108);
+  cx.strokeStyle='rgba(63,185,80,.3)'; cx.lineWidth=1;
+  cx.beginPath(); cx.moveTo(0,108); cx.lineTo(W,108); cx.stroke();
+
+  // Green swoosh accent line under text
+  const swoosh = cx.createLinearGradient(0,0,W,0);
+  swoosh.addColorStop(0,'transparent');
+  swoosh.addColorStop(.2,'#3fb950');
+  swoosh.addColorStop(.8,'#3fb950');
+  swoosh.addColorStop(1,'transparent');
+  cx.strokeStyle=swoosh; cx.lineWidth=2;
+  cx.beginPath(); cx.moveTo(0,102); cx.lineTo(W,102); cx.stroke();
+
+  // "CopyCat" in Pacifico (swoosh style)
+  cx.textAlign='center'; cx.textBaseline='middle';
+  cx.font='bold 72px Pacifico, cursive';
+  cx.shadowColor='rgba(63,185,80,.6)'; cx.shadowBlur=24;
+  cx.fillStyle='#3fb950';
+  cx.fillText('CopyCat', W/2, 46);
+  cx.shadowBlur=0;
+
+  // Subtitle
+  cx.font='600 20px Rajdhani, sans-serif';
+  cx.fillStyle='rgba(200,210,220,.65)';
+  cx.letterSpacing='3px';
+  cx.fillText('PREDICTIVE MARKET  ·  AUTOMATED TRADING', W/2, 82);
+
+  cx.restore();
+}
+
+// ─── DRAW: Collected counter ───────────────────────────────────────────────
+function drawCounter(alpha) {
+  if (collected === 0 || alpha <= 0) return;
+  cx.save(); cx.globalAlpha=alpha;
+  cx.fillStyle='rgba(13,17,23,.88)';
+  cx.beginPath();
+  cx.roundRect(W-224, H-90, 192, 56, 14);
+  cx.fill();
+  cx.strokeStyle='rgba(63,185,80,.4)'; cx.lineWidth=1.5;
+  cx.beginPath(); cx.roundRect(W-224,H-90,192,56,14); cx.stroke();
+  cx.fillStyle='#3fb950';
+  cx.font='bold 21px -apple-system,sans-serif';
+  cx.textAlign='center'; cx.textBaseline='middle';
+  cx.fillText(`\uD83D\uDCB0 +$${collected*100} copied`, W-224+96, H-62);
+  cx.restore();
+}
+
+// ─── DRAW: End card ────────────────────────────────────────────────────────
+function drawEndCard(prog) {
+  if (prog <= 0) return;
+  const alpha = clamp(prog*3.5, 0, 1);
+  cx.save(); cx.globalAlpha=alpha;
+
+  cx.fillStyle='#0d1117'; cx.fillRect(0,0,W,H);
+
+  // Radial glow
+  const rg = cx.createRadialGradient(W/2,H/2,0,W/2,H/2,480);
+  rg.addColorStop(0,'rgba(63,185,80,.2)'); rg.addColorStop(1,'transparent');
+  cx.fillStyle=rg; cx.fillRect(0,0,W,H);
+
+  // Grid
+  cx.strokeStyle='rgba(255,255,255,.025)'; cx.lineWidth=1;
+  for (let gx=0; gx<W; gx+=54) { cx.beginPath(); cx.moveTo(gx,0); cx.lineTo(gx,H); cx.stroke(); }
+  for (let gy=0; gy<H; gy+=54) { cx.beginPath(); cx.moveTo(0,gy); cx.lineTo(W,gy); cx.stroke(); }
+
+  // Mini Cheshire cat — end card (same as walking cat face)
+  const cc = W/2, cy = 300;
+  // Glow halo behind cat
+  const halo = cx.createRadialGradient(cc,cy,20,cc,cy,110);
+  halo.addColorStop(0,'rgba(63,185,80,.18)'); halo.addColorStop(1,'transparent');
+  cx.fillStyle=halo; cx.beginPath(); cx.arc(cc,cy,110,0,Math.PI*2); cx.fill();
+
+  // Ears — poke up from sides of head behind hat brim (head radius 74, top ≈ cy-74)
+  // Left ear
+  cx.fillStyle='#1a8a36';
+  cx.beginPath(); cx.moveTo(cc-56,cy-52); cx.lineTo(cc-66,cy-110); cx.lineTo(cc-28,cy-64); cx.closePath(); cx.fill();
+  cx.fillStyle='#ffb3c1';
+  cx.beginPath(); cx.moveTo(cc-52,cy-55); cx.lineTo(cc-60,cy-104); cx.lineTo(cc-32,cy-66); cx.closePath(); cx.fill();
+  // Right ear
+  cx.fillStyle='#1a8a36';
+  cx.beginPath(); cx.moveTo(cc+28,cy-64); cx.lineTo(cc+66,cy-110); cx.lineTo(cc+56,cy-52); cx.closePath(); cx.fill();
+  cx.fillStyle='#ffb3c1';
+  cx.beginPath(); cx.moveTo(cc+32,cy-66); cx.lineTo(cc+60,cy-104); cx.lineTo(cc+52,cy-55); cx.closePath(); cx.fill();
+
+  // Head — green Cheshire
+  const ecHeadG = cx.createRadialGradient(cc,cy,8,cc,cy,76);
+  ecHeadG.addColorStop(0,'#80e890'); ecHeadG.addColorStop(1,'#2ea043');
+  cx.fillStyle=ecHeadG; cx.beginPath(); cx.arc(cc,cy,74,0,Math.PI*2); cx.fill();
+  // Gold stripes on head
+  for (let si=0; si<4; si++) {
+    cx.save();
+    cx.beginPath(); cx.arc(cc,cy,74,0,Math.PI*2); cx.clip();
+    cx.fillStyle='rgba(244,211,63,.28)';
+    cx.fillRect(cc-80,cy-76+si*34, 160, 16);
+    cx.restore();
+  }
+  // Puffy cheeks
+  cx.fillStyle='rgba(100,220,120,.5)';
+  cx.beginPath(); cx.ellipse(cc-56,cy+12,30,24,0,0,Math.PI*2); cx.fill();
+  cx.beginPath(); cx.ellipse(cc+56,cy+12,30,24,0,0,Math.PI*2); cx.fill();
+
+  // Hat — sits ON the head (brim at top of head ≈ cy-74)
+  const ecBrimG = cx.createLinearGradient(0,cy-78,0,cy-66);
+  ecBrimG.addColorStop(0,'#2db84e'); ecBrimG.addColorStop(1,'#1a8a36');
+  cx.fillStyle=ecBrimG;
+  cx.beginPath(); cx.ellipse(cc,cy-74,62,14,0,0,Math.PI*2); cx.fill();
+  cx.fillStyle='rgba(255,255,255,.13)';
+  cx.beginPath(); cx.ellipse(cc,cy-73,56,9,0,0,Math.PI*2); cx.fill();
+  const ecHatG = cx.createLinearGradient(cc-42,0,cc+42,0);
+  ecHatG.addColorStop(0,'#1d8a38'); ecHatG.addColorStop(.4,'#2db84e'); ecHatG.addColorStop(1,'#1d8a38');
+  cx.fillStyle=ecHatG;
+  cx.beginPath(); cx.moveTo(cc-44,cy-74); cx.lineTo(cc-34,cy-168); cx.lineTo(cc+46,cy-168); cx.lineTo(cc+56,cy-74); cx.closePath(); cx.fill();
+  cx.fillStyle='rgba(255,255,255,.07)';
+  cx.beginPath(); cx.moveTo(cc-44,cy-74); cx.lineTo(cc-34,cy-168); cx.lineTo(cc-16,cy-168); cx.lineTo(cc-26,cy-74); cx.closePath(); cx.fill();
+  cx.fillStyle='#145c28'; cx.fillRect(cc-42,cy-106,96,16);
+  cx.fillStyle='#d4af37'; cx.fillRect(cc-8,cy-111,24,24);
+  cx.fillStyle='#1d8a38'; cx.fillRect(cc-5,cy-108,18,18);
+  cx.save();
+  cx.shadowColor='#f4d03f'; cx.shadowBlur=20;
+  cx.fillStyle='#f4d03f';
+  cx.font='bold 48px Georgia,serif'; cx.textAlign='center'; cx.textBaseline='middle';
+  cx.fillText('$', cc+2, cy-144);
+  cx.shadowBlur=0; cx.restore();
+
+  // Eyes — $$ Cheshire style
+  function ecDollarEye(ex,ey) {
+    cx.shadowColor='#f1c40f'; cx.shadowBlur=20;
+    cx.fillStyle='#1a0e2a';
+    cx.beginPath(); cx.ellipse(ex,ey,26,26,0,0,Math.PI*2); cx.fill();
+    cx.shadowBlur=0;
+    const iG = cx.createRadialGradient(ex,ey,3,ex,ey,23);
+    iG.addColorStop(0,'#ffe066'); iG.addColorStop(1,'#d4a00a');
+    cx.fillStyle=iG; cx.beginPath(); cx.ellipse(ex,ey,22,22,0,0,Math.PI*2); cx.fill();
+    cx.fillStyle='rgba(20,10,40,.85)';
+    cx.beginPath(); cx.ellipse(ex,ey,12,16,0,0,Math.PI*2); cx.fill();
+    cx.save();
+    cx.shadowColor='#fff'; cx.shadowBlur=8;
+    cx.fillStyle='#fff'; cx.font='bold 24px Georgia,serif';
+    cx.textAlign='center'; cx.textBaseline='middle';
+    cx.fillText('$',ex,ey+1);
+    cx.shadowBlur=0; cx.restore();
+    cx.fillStyle='rgba(255,255,255,.7)';
+    cx.beginPath(); cx.ellipse(ex+8,ey-8,5,6,-.5,0,Math.PI*2); cx.fill();
+  }
+  ecDollarEye(cc-28, cy+2);
+  ecDollarEye(cc+28, cy+2);
+
+  // Nose
+  cx.fillStyle='#ff6b8a';
+  cx.beginPath(); cx.moveTo(cc,cy+22); cx.lineTo(cc-8,cy+30); cx.lineTo(cc+8,cy+30); cx.closePath(); cx.fill();
+
+  // Big Cheshire grin
+  cx.save();
+  cx.fillStyle='#fffaf0';
+  cx.beginPath();
+  cx.moveTo(cc-52,cy+30); cx.quadraticCurveTo(cc,cy+68, cc+52,cy+30);
+  cx.quadraticCurveTo(cc,cy+48, cc-52,cy+30);
+  cx.closePath(); cx.fill();
+  cx.strokeStyle='rgba(160,140,140,.5)'; cx.lineWidth=1.5;
+  for (let ti=-2; ti<=2; ti++) {
+    cx.beginPath(); cx.moveTo(cc+ti*18,cy+30+Math.abs(ti)*4); cx.lineTo(cc+ti*18,cy+44); cx.stroke();
+  }
+  cx.strokeStyle='#1a6b2a'; cx.lineWidth=3.5; cx.lineCap='round';
+  cx.beginPath(); cx.moveTo(cc-56,cy+28); cx.quadraticCurveTo(cc,cy+72, cc+56,cy+28); cx.stroke();
+  cx.beginPath(); cx.moveTo(cc-52,cy+30); cx.quadraticCurveTo(cc,cy+50, cc+52,cy+30); cx.stroke();
+  cx.restore();
+
+  // Whiskers
+  cx.strokeStyle='rgba(230,255,230,.9)'; cx.lineWidth=2;
+  [[cc-8,cy+22,cc-80,cy+16],[cc-8,cy+22,cc-78,cy+8],[cc-8,cy+22,cc-72,cy+0],
+   [cc+8,cy+22,cc+80,cy+16],[cc+8,cy+22,cc+78,cy+8],[cc+8,cy+22,cc+72,cy+0]
+  ].forEach(([x1,y1,x2,y2]) => { cx.beginPath(); cx.moveTo(x1,y1); cx.lineTo(x2,y2); cx.stroke(); });
+
+  // "CopyCat" logo in Pacifico
+  cx.save();
+  cx.shadowColor='rgba(63,185,80,.7)'; cx.shadowBlur=30;
+  cx.fillStyle='#3fb950';
+  cx.font='bold 104px Pacifico, cursive';
+  cx.textAlign='center'; cx.textBaseline='middle';
+  cx.fillText('CopyCat', W/2, 460);
+  cx.shadowBlur=0; cx.restore();
+
+  // Subtitle
+  cx.font='600 28px Rajdhani, sans-serif';
+  cx.fillStyle='#8b949e'; cx.textAlign='center';
+  cx.fillText('PREDICTIVE MARKET  ·  AUTOMATED TRADING', W/2, 520);
+
+  // Divider
+  const dg = cx.createLinearGradient(W/2-240,0,W/2+240,0);
+  dg.addColorStop(0,'transparent'); dg.addColorStop(.5,'#3fb950'); dg.addColorStop(1,'transparent');
+  cx.strokeStyle=dg; cx.lineWidth=2;
+  cx.beginPath(); cx.moveTo(W/2-240,575); cx.lineTo(W/2+240,575); cx.stroke();
+
+  // Feature pills
+  [['24 / 7 Automated', W/2-188, 640],
+   ['Top Traders Only', W/2+188, 640],
+   ['Real-time Dashboard', W/2-188, 712],
+   ['Loss Protection', W/2+188, 712],
+  ].forEach(([lbl, fx, fy]) => {
+    cx.fillStyle='rgba(63,185,80,.1)';
+    cx.strokeStyle='rgba(63,185,80,.3)'; cx.lineWidth=1;
+    cx.beginPath(); cx.roundRect(fx-138,fy-24,276,48,12); cx.fill(); cx.stroke();
+    cx.fillStyle='#3fb950';
+    cx.font='600 21px Rajdhani,sans-serif'; cx.textAlign='center'; cx.textBaseline='middle';
+    cx.fillText('✓  '+lbl, fx, fy);
+  });
+
+  // Price
+  cx.font='bold 44px -apple-system,sans-serif';
+  cx.fillStyle='#e6edf3'; cx.textAlign='center';
+  cx.fillText('$49 / month', W/2, 812);
+
+  // URL glow
+  cx.save();
+  cx.font='bold 36px monospace'; cx.textAlign='center';
+  cx.shadowColor='#3fb950'; cx.shadowBlur=18;
+  cx.fillStyle='#3fb950';
+  cx.fillText('copycat.adam-works.com', W/2, 912);
+  cx.shadowBlur=0; cx.restore();
+
+  cx.restore();
+}
+
+// ─── Main loop ─────────────────────────────────────────────────────────────
+function frame(ts) {
+  if (!prev) prev = ts;
+  const dt   = clamp((ts - prev) / 1000, 0, .05);
+  prev = ts;
+
+  const tAbs  = ts / 1000;
+  const tLoop = tAbs % TOTAL;
+  const inScene = tLoop < SCENE;
+  const endProg = tLoop > SCENE ? (tLoop - SCENE) / (TOTAL - SCENE) : 0;
+  const hdrAlpha = inScene ? 1 : clamp(1 - (endProg * 4), 0, 1);
+  const fadeIn  = clamp(tLoop / .6, 0, 1);
+
+  if (inScene) { scroll += SPEED * dt; walkAcc += SPEED * dt; }
+
+  const walkPh = (walkAcc / 82) % 1;
+
+  // Spawn bills
+  if (inScene && tAbs - lastBill > .9 + Math.random()*.5) {
+    spawnBill(); lastBill = tAbs;
+  }
+
+  updateBills(dt);
+  if (inScene) checkPickup();
+
+  if (picking) {
+    pickT += dt / PICK_DUR;
+    if (pickT >= 1) {
+      picking = false; pickT = 1;
+      if (pickIdx >= 0 && bills[pickIdx]) { bills[pickIdx].collected = true; collected++; }
+      pickIdx = -1;
+    }
+  }
+
+  // ── Draw ──────────────────────────────────────────────────────────────
+  cx.clearRect(0, 0, W, H);
+  drawBg();
+
+  // Bills behind characters
+  bills.forEach(b => { if (b.settled) drawBill(b.x, b.y, b.rot, b.sc, b.alpha); });
+  bills.forEach(b => { if (!b.settled) drawBill(b.x, b.y, b.rot, b.sc, b.alpha); });
+
+  if (inScene || tLoop < SCENE + .8) {
+    drawMan(MAN_X, walkPh, tLoop);
+    drawCat(CAT_X, walkPh*.94, tLoop, picking ? pickT : 0);
+    if (picking) drawPickEffect(CAT_X + 38, GND - 70, pickT);
+    drawCounter(fadeIn);
+  }
+
+  drawHeader(hdrAlpha * fadeIn);
+  drawEndCard(endProg);
+
+  requestAnimationFrame(frame);
+}
+
+// Wait for fonts then start
+document.fonts.ready.then(() => requestAnimationFrame(frame));
+</script>
+</body>
+</html>

@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>CopyCat Demo Video</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Rajdhani:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  width:1080px; height:1920px;
+  background:#0d1117;
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+  overflow:hidden;
+}
+canvas {
+  position:absolute;
+  top:0; left:0;
+  width:1080px; height:1920px;
+}
+@media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
+</style>
+</head>
+<body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<script>
+// ── Config ─────────────────────────────────────────────────────────────────
+const W = 1080, H = 1920;
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+
+// ── Fake data ───────────────────────────────────────────────────────────────
+const STATS = {
+  pnl: 2847.50,
+  winRate: 73.2,
+  trades: 142,
+  winners: 89,
+  losers: 18,
+  invested: 1420,
+};
+
+const TRADES = [
+  { time:'2:47:13 PM', trader:'CryptoWhale99', slug:'will-bitcoin-hit-100k-2025', outcome:'YES', action:'BUY', amount:'$50', status:'✓', age:0 },
+  { time:'2:46:58 PM', trader:'PolyKing',      slug:'trump-win-2024-election',    outcome:'YES', action:'BUY', amount:'$50', status:'✓', age:1 },
+  { time:'2:44:20 PM', trader:'SmartMoney7',   slug:'fed-rate-cut-march-2025',    outcome:'YES', action:'SELL',amount:'$50', status:'✓', age:2 },
+  { time:'2:41:05 PM', trader:'EliteTrader',   slug:'ethereum-above-4k-jan-2025', outcome:'YES', action:'BUY', amount:'$50', status:'✓', age:3 },
+  { time:'2:38:44 PM', trader:'CryptoWhale99', slug:'nba-lakers-win-title',       outcome:'YES', action:'BUY', amount:'$50', status:'✓', age:4 },
+  { time:'2:35:11 PM', trader:'PolyKing',      slug:'solana-above-200-q1',        outcome:'YES', action:'SELL',amount:'$50', status:'✓', age:5 },
+];
+
+const POSITIONS = [
+  { title:'Will Bitcoin hit $100K in 2025?',    outcome:'YES', shares:120.5, value:84.35,  price:0.70 },
+  { title:'Trump wins 2024 election',           outcome:'YES', shares:95.2,  value:88.54,  price:0.93 },
+  { title:'Ethereum above $4K in Jan 2025?',    outcome:'YES', shares:68.0,  value:34.00,  price:0.50 },
+  { title:'Lakers win 2025 NBA Championship',   outcome:'YES', shares:45.0,  value:20.25,  price:0.45 },
+];
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+const BG      = '#0d1117';
+const CARD    = '#161b22';
+const BORDER  = '#21262d';
+const GREEN   = '#3fb950';
+const RED     = '#f85149';
+const BLUE    = '#58a6ff';
+const DIM     = '#8b949e';
+const TEXT    = '#e6edf3';
+const TEXT2   = '#c9d1d9';
+
+// ── Animation state ──────────────────────────────────────────────────────────
+let t = 0;
+let newTradeTimer = 0;
+let liveTradeFlash = 0;
+let pnlAnimated = 0;
+let winRateAnimated = 0;
+let tradesAnimated = 0;
+let winnersAnimated = 0;
+let startTime = null;
+let phase = 0;  // 0=intro, 1=dashboard, 2=new trade flash, 3=end
+
+// ── Drawing helpers ──────────────────────────────────────────────────────────
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y);
+  ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+  ctx.lineTo(x+w, y+h-r);
+  ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
+  ctx.lineTo(x+r, y+h);
+  ctx.quadraticCurveTo(x, y+h, x, y+h-r);
+  ctx.lineTo(x, y+r);
+  ctx.quadraticCurveTo(x, y, x+r, y);
+  ctx.closePath();
+}
+
+function badge(x, y, w, h, r, bg, border, text, color, size=20) {
+  ctx.save();
+  roundRect(x, y, w, h, r);
+  ctx.fillStyle = bg;
+  ctx.fill();
+  ctx.strokeStyle = border;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.fillStyle = color;
+  ctx.font = `700 ${size}px Inter`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, x+w/2, y+h/2);
+  ctx.restore();
+}
+
+// ── Draw header ─────────────────────────────────────────────────────────────
+function drawHeader(alpha=1) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  // Header bar
+  roundRect(40, 40, W-80, 88, 16);
+  ctx.fillStyle = CARD;
+  ctx.fill();
+  ctx.strokeStyle = BORDER;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Logo
+  ctx.fillStyle = TEXT;
+  ctx.font = '700 32px Inter';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Copy', 80, 84);
+  ctx.fillStyle = GREEN;
+  ctx.fillText('Cat', 80 + ctx.measureText('Copy').width, 84);
+
+  // Status pill — RUNNING
+  const pillX = W - 80 - 220;
+  roundRect(pillX, 62, 140, 44, 22);
+  ctx.fillStyle = '#1a2d1e';
+  ctx.fill();
+  ctx.strokeStyle = '#2ea043';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  // Dot
+  ctx.beginPath();
+  ctx.arc(pillX+22, 84, 7, 0, Math.PI*2);
+  ctx.fillStyle = GREEN;
+  const glowPulse = 0.6 + 0.4*Math.sin(t*4);
+  ctx.shadowColor = GREEN;
+  ctx.shadowBlur = 10 * glowPulse;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = GREEN;
+  ctx.font = '600 24px Inter';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Running', pillX+36, 84);
+
+  // Stop button
+  roundRect(W-80-68, 62, 108, 44, 10);
+  ctx.fillStyle = '#da3633';
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = '600 22px Inter';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Stop Bot', W-80-68+54, 84);
+
+  // LIVE badge
+  roundRect(W-80-360, 62, 80, 44, 8);
+  ctx.fillStyle = '#3a1a1a';
+  ctx.fill();
+  ctx.strokeStyle = RED;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(W-80-360+22, 84, 6, 0, Math.PI*2);
+  ctx.fillStyle = RED;
+  ctx.shadowColor = RED;
+  ctx.shadowBlur = 8 * glowPulse;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = RED;
+  ctx.font = '700 20px Inter';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('LIVE', W-80-360+34, 84);
+
+  ctx.restore();
+}
+
+// ── Draw stat cards ──────────────────────────────────────────────────────────
+function drawStats(alpha=1) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  const cardW = (W-80-64) / 2;
+  const cardH = 148;
+  const row1Y = 152;
+
+  const cards = [
+    { label:'Realized P&L', val:'+$'+pnlAnimated.toFixed(2), color:GREEN, sub:'$'+STATS.invested.toFixed(2)+' deployed' },
+    { label:'Win Rate',     val:winRateAnimated.toFixed(1)+'%', color:GREEN, sub:(Math.round(winnersAnimated)+Math.round(STATS.losers))+' resolved' },
+    { label:'Total Trades', val:Math.round(tradesAnimated).toString(), color:TEXT, sub:Math.round(tradesAnimated*0.63)+' buys · '+Math.round(tradesAnimated*0.37)+' sells' },
+    { label:'Winners 🏆',   val:Math.round(winnersAnimated).toString(), color:GREEN, sub:'completed round-trips' },
+  ];
+
+  cards.forEach((card, i) => {
+    const col = i % 2;
+    const row = Math.floor(i / 2);
+    const x = 40 + col*(cardW+16);
+    const y = row1Y + row*(cardH+16);
+
+    roundRect(x, y, cardW, cardH, 14);
+    ctx.fillStyle = CARD;
+    ctx.fill();
+    ctx.strokeStyle = i===0 ? 'rgba(63,185,80,.3)' : BORDER;
+    ctx.lineWidth = 1.5;
+    if (i===0) {
+      ctx.shadowColor = GREEN;
+      ctx.shadowBlur = 18;
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = DIM;
+    ctx.font = '600 19px Inter';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(card.label.toUpperCase(), x+22, y+22);
+
+    ctx.fillStyle = card.color;
+    ctx.font = '700 48px Inter';
+    ctx.textBaseline = 'top';
+    ctx.fillText(card.val, x+22, y+52);
+
+    ctx.fillStyle = DIM;
+    ctx.font = '400 20px Inter';
+    ctx.textBaseline = 'top';
+    ctx.fillText(card.sub, x+22, y+112);
+  });
+
+  // Win/loss bar spanning full width
+  const barY = row1Y + 2*(cardH+16) + 4;
+  const barW = W-80;
+  const winPct = STATS.winners / (STATS.winners + STATS.losers);
+
+  roundRect(40, barY, barW, 10, 5);
+  ctx.fillStyle = BORDER;
+  ctx.fill();
+
+  roundRect(40, barY, barW*winPct, 10, 5);
+  ctx.fillStyle = GREEN;
+  ctx.shadowColor = GREEN;
+  ctx.shadowBlur = 6;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  ctx.restore();
+}
+
+// ── Draw positions table ─────────────────────────────────────────────────────
+function drawPositions(alpha=1) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  const secY = 560;
+  const tableW = W-80;
+
+  // Section title
+  ctx.fillStyle = TEXT;
+  ctx.font = '600 28px Inter';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('Open Positions', 40, secY);
+
+  // Refresh button
+  roundRect(W-40-120, secY-2, 120, 36, 8);
+  ctx.fillStyle = 'transparent';
+  ctx.strokeStyle = BORDER;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.fillStyle = DIM;
+  ctx.font = '600 18px Inter';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('↺ Refresh', W-40-60, secY+16);
+
+  // Table header
+  const tY = secY+46;
+  roundRect(40, tY, tableW, 46, 12);
+  ctx.fillStyle = CARD;
+  ctx.fill();
+  ctx.strokeStyle = BORDER;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  const cols = [
+    { label:'MARKET',  x:70,   w:340 },
+    { label:'OUTCOME', x:430,  w:100 },
+    { label:'SHARES',  x:560,  w:100 },
+    { label:'VALUE',   x:680,  w:100 },
+    { label:'PRICE',   x:800,  w:100 },
+    { label:'ACTION',  x:920,  w:120, align:'right' },
+  ];
+  cols.forEach(col => {
+    ctx.fillStyle = DIM;
+    ctx.font = '600 17px Inter';
+    ctx.textAlign = col.align || 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(col.label, col.align==='right' ? col.x+col.w-10 : col.x, tY+23);
+  });
+
+  // Table rows
+  POSITIONS.forEach((p, i) => {
+    const rowY = tY + 46 + i*58;
+    roundRect(40, rowY, tableW, 58, 0);
+    ctx.fillStyle = i%2===0 ? 'rgba(22,27,34,0.5)' : BG;
+    ctx.fill();
+    ctx.strokeStyle = BORDER;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(40, rowY+58);
+    ctx.lineTo(40+tableW, rowY+58);
+    ctx.stroke();
+
+    // Title
+    ctx.fillStyle = TEXT2;
+    ctx.font = '500 20px Inter';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    const maxW = 320;
+    let title = p.title;
+    while (ctx.measureText(title).width > maxW && title.length > 10) title = title.slice(0,-1);
+    if (title !== p.title) title += '…';
+    ctx.fillText(title, 70, rowY+29);
+
+    // Outcome badge
+    const obX = 430, obY = rowY+9, obW = 68, obH = 38;
+    roundRect(obX, obY, obW, obH, 20);
+    ctx.fillStyle = p.outcome==='YES' ? '#1a2d1e' : '#2d1a1a';
+    ctx.fill();
+    ctx.fillStyle = p.outcome==='YES' ? GREEN : RED;
+    ctx.font = '700 18px Inter';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(p.outcome, obX+obW/2, obY+obH/2);
+
+    // Shares
+    ctx.fillStyle = TEXT2;
+    ctx.font = '500 20px Inter';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(p.shares.toFixed(1), 560, rowY+29);
+
+    // Value
+    ctx.fillStyle = GREEN;
+    ctx.font = '600 20px Inter';
+    ctx.fillText('$'+p.value.toFixed(2), 680, rowY+29);
+
+    // Price
+    ctx.fillStyle = DIM;
+    ctx.font = '500 20px Inter';
+    ctx.fillText((p.price*100).toFixed(0)+'¢', 800, rowY+29);
+
+    // Close button
+    const btnX = 900, btnY = rowY+11, btnW = 120, btnH = 36;
+    roundRect(btnX, btnY, btnW, btnH, 8);
+    ctx.fillStyle = 'rgba(45,26,26,.7)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(248,81,73,.5)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = RED;
+    ctx.font = '600 18px Inter';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Close ✕', btnX+btnW/2, btnY+btnH/2);
+  });
+
+  // Bottom border of table
+  roundRect(40, tY, tableW, 46 + POSITIONS.length*58, 12);
+  ctx.strokeStyle = BORDER;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// ── Draw trade feed ──────────────────────────────────────────────────────────
+function drawTrades(alpha=1, highlightFirst=false) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  const secY = 1140;
+  const tableW = W-80;
+
+  ctx.fillStyle = TEXT;
+  ctx.font = '600 28px Inter';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('Copied Trades', 40, secY);
+
+  const tY = secY + 46;
+
+  // Header
+  roundRect(40, tY, tableW, 46, 12);
+  ctx.fillStyle = CARD;
+  ctx.fill();
+  ctx.strokeStyle = BORDER;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ['TIME','TRADER','MARKET','OUTCOME','ACTION','AMOUNT','STATUS'].forEach((h, i) => {
+    const xs = [70, 200, 430, 680, 762, 852, 980];
+    ctx.fillStyle = DIM;
+    ctx.font = '600 17px Inter';
+    ctx.textAlign = i===6 ? 'center' : 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(h, xs[i], tY+23);
+  });
+
+  TRADES.forEach((tr, i) => {
+    const rowY = tY + 46 + i*62;
+    if (rowY > H-80) return;
+
+    // Highlight newest trade
+    if (i===0 && highlightFirst && liveTradeFlash > 0) {
+      roundRect(40, rowY, tableW, 62, 0);
+      ctx.fillStyle = `rgba(63,185,80,${0.08*liveTradeFlash})`;
+      ctx.fill();
+    }
+
+    ctx.strokeStyle = BORDER;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(40, rowY+62);
+    ctx.lineTo(40+tableW, rowY+62);
+    ctx.stroke();
+
+    // Time
+    ctx.fillStyle = DIM;
+    ctx.font = '400 18px Inter';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(tr.time, 70, rowY+31);
+
+    // Trader
+    ctx.fillStyle = TEXT;
+    ctx.font = '500 20px Inter';
+    ctx.fillText(tr.trader, 200, rowY+31);
+
+    // Slug (truncated)
+    ctx.fillStyle = DIM;
+    ctx.font = '400 18px Inter';
+    let slug = tr.slug;
+    while (ctx.measureText(slug).width > 220) slug = slug.slice(0,-1);
+    if (slug !== tr.slug) slug += '…';
+    ctx.fillText(slug, 430, rowY+31);
+
+    // Outcome badge
+    badge(682, rowY+8, 60, 34, 17,
+      tr.outcome==='YES'?'#1a2d1e':'#2d1a1a',
+      'transparent',
+      tr.outcome,
+      tr.outcome==='YES'?GREEN:RED, 16);
+
+    // Action badge
+    const abg = tr.action==='BUY' ? '#1a2d1e' : '#1e2533';
+    const aborder = tr.action==='BUY' ? '#2ea043' : '#388bfd';
+    const acol = tr.action==='BUY' ? GREEN : BLUE;
+    badge(762, rowY+8, 72, 34, 17, abg, aborder, tr.action, acol, 16);
+
+    // Amount
+    ctx.fillStyle = TEXT;
+    ctx.font = '600 20px Inter';
+    ctx.textAlign = 'left';
+    ctx.fillText(tr.amount, 852, rowY+31);
+
+    // Status
+    ctx.fillStyle = GREEN;
+    ctx.font = '600 24px Inter';
+    ctx.textAlign = 'center';
+    ctx.fillText(tr.status, 990, rowY+31);
+  });
+
+  roundRect(40, tY, tableW, 46 + TRADES.length*62, 12);
+  ctx.strokeStyle = BORDER;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// ── Draw new trade notification ──────────────────────────────────────────────
+function drawNewTradeNotif(alpha) {
+  if (alpha <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  const nW = 580, nH = 100;
+  const nX = (W-nW)/2;
+  const nY = 60;
+
+  roundRect(nX, nY, nW, nH, 16);
+  ctx.fillStyle = '#1a2d1e';
+  ctx.fill();
+  ctx.strokeStyle = GREEN;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = GREEN;
+  ctx.shadowBlur = 20;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = GREEN;
+  ctx.font = '700 26px Inter';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🚀 New Trade Copied! +$50.00', nX+nW/2, nY+nH/2);
+
+  ctx.restore();
+}
+
+// ── Draw end card ────────────────────────────────────────────────────────────
+function drawEndCard(alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  // Dark overlay
+  ctx.fillStyle = 'rgba(13,17,23,0.95)';
+  ctx.fillRect(0, 0, W, H);
+
+  // CopyCat logo
+  ctx.textAlign = 'center';
+  ctx.font = '700 48px Pacifico';
+  ctx.fillStyle = TEXT;
+  const logoY = H/2 - 300;
+  ctx.shadowColor = GREEN;
+  ctx.shadowBlur = 30;
+  ctx.fillText('CopyCat', W/2, logoY);
+  ctx.shadowBlur = 0;
+
+  // Green accent swoosh under logo
+  ctx.beginPath();
+  ctx.moveTo(W/2-160, logoY+28);
+  ctx.quadraticCurveTo(W/2, logoY+56, W/2+160, logoY+28);
+  ctx.strokeStyle = GREEN;
+  ctx.lineWidth = 3;
+  ctx.shadowColor = GREEN;
+  ctx.shadowBlur = 12;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = DIM;
+  ctx.font = '600 26px Rajdhani';
+  ctx.fillText('PREDICTIVE MARKET · AUTOMATED TRADING', W/2, logoY+70);
+
+  // Big stat
+  const statY = H/2 - 120;
+  ctx.fillStyle = GREEN;
+  ctx.font = '700 130px Inter';
+  ctx.shadowColor = GREEN;
+  ctx.shadowBlur = 40;
+  ctx.fillText('+$2,847', W/2, statY);
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = DIM;
+  ctx.font = '600 34px Inter';
+  ctx.fillText('Average weekly earnings', W/2, statY+48);
+
+  // Win rate
+  ctx.fillStyle = TEXT;
+  ctx.font = '700 80px Inter';
+  ctx.fillText('73.2% Win Rate', W/2, statY+148);
+
+  // Feature pills
+  const features = ['24/7 Automated', 'Copies Top Traders', 'Built-in Loss Limits', 'Real-time Dashboard'];
+  const pillY = H/2 + 200;
+  const pillW = 240, pillH = 56, gap = 16;
+  const totalW = features.length/2*(pillW+gap) - gap;
+  features.forEach((f, i) => {
+    const col = i % 2;
+    const row = Math.floor(i/2);
+    const px = W/2 - totalW/2 + col*(pillW+gap);
+    const py = pillY + row*(pillH+14);
+    roundRect(px, py, pillW, pillH, 28);
+    ctx.fillStyle = '#1a2d1e';
+    ctx.fill();
+    ctx.strokeStyle = '#2ea043';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = GREEN;
+    ctx.font = '600 22px Inter';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('✓ '+f, px+pillW/2, py+pillH/2);
+  });
+
+  // Price
+  const priceY = H/2 + 460;
+  ctx.fillStyle = TEXT;
+  ctx.font = '700 52px Inter';
+  ctx.fillText('$49 / month', W/2, priceY);
+  ctx.fillStyle = DIM;
+  ctx.font = '400 28px Inter';
+  ctx.fillText('or $294 one-time · Cancel anytime', W/2, priceY+50);
+
+  // URL
+  ctx.fillStyle = GREEN;
+  ctx.font = '700 38px Inter';
+  ctx.shadowColor = GREEN;
+  ctx.shadowBlur = 16;
+  ctx.fillText('copycat.adam-works.com', W/2, priceY+120);
+  ctx.shadowBlur = 0;
+
+  ctx.restore();
+}
+
+// ── Draw Cheshire Cat mascot ─────────────────────────────────────────────────
+function drawMiniCat(x, y, size, alpha=1) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y);
+  const s = size/80;
+  ctx.scale(s, s);
+
+  // Tail — purple striped
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#2ea043';
+  ctx.lineWidth = 14;
+  ctx.beginPath();
+  ctx.moveTo(22, 22);
+  ctx.quadraticCurveTo(70, -10, 62, -58);
+  ctx.stroke();
+  for (let si=0; si<3; si++) {
+    ctx.strokeStyle = si%2===0 ? '#f4d03f' : '#1a6b2a';
+    ctx.lineWidth = 7;
+    ctx.setLineDash([12,12]);
+    ctx.lineDashOffset = -si*6;
+    ctx.beginPath();
+    ctx.moveTo(22, 22);
+    ctx.quadraticCurveTo(70, -10, 62, -58);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // Body — purple cheshire
+  const bodyGrad = ctx.createRadialGradient(0, 12, 4, 0, 12, 36);
+  bodyGrad.addColorStop(0, '#f4d03f');
+  bodyGrad.addColorStop(1, '#2ea043');
+  ctx.beginPath();
+  ctx.ellipse(0, 14, 32, 26, 0, 0, Math.PI*2);
+  ctx.fillStyle = bodyGrad;
+  ctx.fill();
+
+  // Body stripes
+  for (let si=0; si<4; si++) {
+    ctx.save();
+    ctx.beginPath(); ctx.ellipse(0, 14, 32, 26, 0, 0, Math.PI*2); ctx.clip();
+    ctx.fillStyle = 'rgba(244,211,63,.3)';
+    ctx.fillRect(-38, -14+si*16, 80, 8);
+    ctx.restore();
+  }
+
+  // Belly
+  ctx.fillStyle = 'rgba(255,245,255,.85)';
+  ctx.beginPath();
+  ctx.ellipse(4, 18, 20, 18, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Head — big round
+  const headGrad = ctx.createRadialGradient(0, -20, 6, 0, -20, 34);
+  headGrad.addColorStop(0, '#b8e870');
+  headGrad.addColorStop(1, '#2ea043');
+  ctx.beginPath();
+  ctx.arc(0, -20, 34, 0, Math.PI*2);
+  ctx.fillStyle = headGrad;
+  ctx.fill();
+
+  // Head stripes
+  for (let si=0; si<4; si++) {
+    ctx.save();
+    ctx.beginPath(); ctx.arc(0, -20, 34, 0, Math.PI*2); ctx.clip();
+    ctx.fillStyle = 'rgba(180,220,60,.2)';
+    ctx.fillRect(-40, -56+si*18, 90, 9);
+    ctx.restore();
+  }
+
+  // Puffy cheeks
+  ctx.fillStyle = 'rgba(180,240,120,.45)';
+  ctx.beginPath(); ctx.ellipse(-28, -14, 18, 14, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(28, -14, 18, 14, 0, 0, Math.PI*2); ctx.fill();
+
+  // Ears — poke up from sides of head, behind hat brim (head top ≈ y=-54)
+  // Left ear (outer edge of head, angled outward)
+  ctx.fillStyle = '#1a8a36';
+  ctx.beginPath(); ctx.moveTo(-26,-42); ctx.lineTo(-30,-74); ctx.lineTo(-10,-46); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#ffb3c1';
+  ctx.beginPath(); ctx.moveTo(-24,-44); ctx.lineTo(-27,-68); ctx.lineTo(-12,-47); ctx.closePath(); ctx.fill();
+  // Right ear
+  ctx.fillStyle = '#1a8a36';
+  ctx.beginPath(); ctx.moveTo(10,-46); ctx.lineTo(30,-74); ctx.lineTo(26,-42); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#ffb3c1';
+  ctx.beginPath(); ctx.moveTo(12,-47); ctx.lineTo(27,-68); ctx.lineTo(24,-44); ctx.closePath(); ctx.fill();
+
+  // Green $ hat — sits ON the head (brim rests at top of head y≈-52)
+  const hatGrad = ctx.createLinearGradient(0,-54,0,-30);
+  hatGrad.addColorStop(0,'#2ea043');
+  hatGrad.addColorStop(1,'#1a5c28');
+  // Brim
+  ctx.fillStyle = '#1a5c28';
+  ctx.beginPath(); ctx.ellipse(0, -52, 32, 7, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.1)';
+  ctx.beginPath(); ctx.ellipse(0, -51, 28, 5, 0, 0, Math.PI*2); ctx.fill();
+  // Hat body
+  ctx.fillStyle = hatGrad;
+  ctx.beginPath();
+  ctx.moveTo(-26,-52); ctx.lineTo(-20,-86); ctx.lineTo(22,-86); ctx.lineTo(28,-52);
+  ctx.closePath(); ctx.fill();
+  // Hat band
+  ctx.fillStyle = '#145c28';
+  ctx.fillRect(-24,-65, 50, 9);
+  // $ on hat
+  ctx.save();
+  ctx.shadowColor = '#f1c40f'; ctx.shadowBlur = 10;
+  ctx.fillStyle = '#f4d03f';
+  ctx.font = 'bold 18px Georgia,serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('$', 1, -78);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+
+  // Eyes — $$ signs
+  function dollarEye(ex, ey) {
+    // Glow ring
+    ctx.shadowColor = '#f1c40f'; ctx.shadowBlur = 14;
+    ctx.fillStyle = '#1a0e2a';
+    ctx.beginPath(); ctx.ellipse(ex, ey, 13, 13, 0, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Gold iris
+    const irisG = ctx.createRadialGradient(ex, ey, 1, ex, ey, 11);
+    irisG.addColorStop(0, '#ffe066');
+    irisG.addColorStop(1, '#d4a00a');
+    ctx.fillStyle = irisG;
+    ctx.beginPath(); ctx.ellipse(ex, ey, 11, 11, 0, 0, Math.PI*2); ctx.fill();
+    // Dark pupil
+    ctx.fillStyle = 'rgba(20,10,40,.8)';
+    ctx.beginPath(); ctx.ellipse(ex, ey, 6, 8, 0, 0, Math.PI*2); ctx.fill();
+    // $ symbol
+    ctx.save();
+    ctx.shadowColor = '#fff'; ctx.shadowBlur = 5;
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 12px Georgia,serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('$', ex, ey+1);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+    // Shine
+    ctx.fillStyle = 'rgba(255,255,255,.7)';
+    ctx.beginPath(); ctx.ellipse(ex+4, ey-4, 3, 3.5, -0.5, 0, Math.PI*2); ctx.fill();
+  }
+  dollarEye(-12, -24);
+  dollarEye(12, -24);
+
+  // Nose
+  ctx.fillStyle = '#ff6b8a';
+  ctx.beginPath(); ctx.moveTo(0,-10); ctx.lineTo(-5,-6); ctx.lineTo(5,-6); ctx.closePath(); ctx.fill();
+
+  // Big Cheshire grin
+  ctx.save();
+  // Teeth
+  ctx.fillStyle = '#fffaf0';
+  ctx.beginPath();
+  ctx.moveTo(-26,-4);
+  ctx.quadraticCurveTo(0, 18, 26,-4);
+  ctx.quadraticCurveTo(0, 8, -26,-4);
+  ctx.closePath(); ctx.fill();
+  // Dividers
+  ctx.strokeStyle = 'rgba(180,160,160,.5)'; ctx.lineWidth = 1;
+  for (let ti=-1; ti<=1; ti++) {
+    ctx.beginPath(); ctx.moveTo(ti*9,-3); ctx.lineTo(ti*9, 6); ctx.stroke();
+  }
+  // Grin arc
+  ctx.strokeStyle = '#1a6b2a'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-28,-5);
+  ctx.quadraticCurveTo(0, 22, 28,-5);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-26,-3);
+  ctx.quadraticCurveTo(0, 10, 26,-3);
+  ctx.stroke();
+  ctx.restore();
+
+  // Whiskers
+  ctx.strokeStyle = 'rgba(255,230,255,.9)'; ctx.lineWidth = 1.5;
+  [[-4,-12,-44,-8],[-4,-12,-42,-16],[-4,-12,-38,-20],
+   [4,-12, 44,-8],[ 4,-12, 42,-16],[4,-12,38,-20]
+  ].forEach(([x1,y1,x2,y2]) => {
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  });
+
+  ctx.restore();
+}
+
+// ── Draw floating dollar signs ───────────────────────────────────────────────
+let floatDollars = [];
+function spawnDollar() {
+  floatDollars.push({
+    x: Math.random()*W,
+    y: H + 40,
+    vy: -(2 + Math.random()*3),
+    vx: (Math.random()-0.5)*1.5,
+    size: 24+Math.random()*24,
+    alpha: 1,
+    rot: (Math.random()-0.5)*0.4,
+  });
+}
+let dollarSpawnTimer = 0;
+
+function updateDollars() {
+  if (dollarSpawnTimer-- <= 0) {
+    spawnDollar();
+    dollarSpawnTimer = 8 + Math.floor(Math.random()*12);
+  }
+  floatDollars = floatDollars.filter(d => d.alpha > 0.02);
+  floatDollars.forEach(d => {
+    d.y += d.vy;
+    d.x += d.vx;
+    if (d.y < H*0.4) d.alpha *= 0.97;
+  });
+}
+
+function drawDollars() {
+  floatDollars.forEach(d => {
+    ctx.save();
+    ctx.globalAlpha = d.alpha * 0.6;
+    ctx.translate(d.x, d.y);
+    ctx.rotate(d.rot);
+    ctx.fillStyle = GREEN;
+    ctx.font = `700 ${d.size}px Inter`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = GREEN;
+    ctx.shadowBlur = 8;
+    ctx.fillText('$', 0, 0);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  });
+}
+
+// ── Main draw loop ───────────────────────────────────────────────────────────
+function draw(timestamp) {
+  if (!startTime) startTime = timestamp;
+  const elapsed = (timestamp - startTime) / 1000; // seconds
+  t = elapsed;
+
+  // Phases:
+  // 0-1s: intro — CopyCat logo flies in
+  // 1-3s: stats animate in
+  // 3-30s: dashboard running, new trades flash every ~6s
+  // 30-34s: end card
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Background grid
+  ctx.fillStyle = BG;
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(255,255,255,.018)';
+  ctx.lineWidth = 1;
+  for (let gx=0; gx<W; gx+=54) {
+    ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,H); ctx.stroke();
+  }
+  for (let gy=0; gy<H; gy+=54) {
+    ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(W,gy); ctx.stroke();
+  }
+
+  if (elapsed < 34) {
+    updateDollars();
+    drawDollars();
+  }
+
+  if (elapsed < 3) {
+    // Intro: cat + logo drop in slowly over 3 seconds
+    const raw = elapsed / 3;                          // 0→1 over 3s
+    const eased = 1 - Math.pow(1 - raw, 2.5);        // ease-out
+    const startY = -300;
+    const endY   = H / 2 + 80;
+    const logoY  = startY + (endY - startY) * eased;
+    const alpha  = Math.min(1, raw * 3);              // fade in quickly
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = '700 96px Pacifico';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = TEXT;
+    ctx.shadowColor = GREEN;
+    ctx.shadowBlur = 40;
+    ctx.fillText('CopyCat', W/2, logoY - 40);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = GREEN;
+    ctx.font = '700 38px Rajdhani';
+    ctx.fillText('PREDICTIVE MARKET · AUTOMATED TRADING', W/2, logoY + 30);
+    ctx.restore();
+
+    drawMiniCat(W/2, logoY - 180, 120, alpha);
+
+  } else if (elapsed < 5.5) {
+    // Stats animating in (shifted by 2s)
+    const progress = Math.min(1, (elapsed - 3) / 2.5);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    pnlAnimated = STATS.pnl * eased;
+    winRateAnimated = STATS.winRate * eased;
+    tradesAnimated = STATS.trades * eased;
+    winnersAnimated = STATS.winners * eased;
+
+    const dashAlpha = Math.min(1, (elapsed - 3) * 1.5);
+    drawHeader(dashAlpha);
+    drawStats(dashAlpha);
+
+  } else if (elapsed < 30) {
+    // Full dashboard
+    pnlAnimated = STATS.pnl;
+    winRateAnimated = STATS.winRate;
+    tradesAnimated = STATS.trades;
+    winnersAnimated = STATS.winners;
+
+    const posAlpha = Math.min(1, (elapsed - 5.5) * 0.7);
+    const tradeAlpha = Math.min(1, (elapsed - 6.5) * 0.7);
+
+    drawHeader();
+    drawStats();
+    drawPositions(posAlpha);
+    drawTrades(tradeAlpha, liveTradeFlash > 0);
+
+    // New trade flash every 7s
+    const tradeCycle = elapsed % 7;
+    if (tradeCycle < 0.5) {
+      liveTradeFlash = 1 - tradeCycle*2;
+    } else if (tradeCycle < 1.5) {
+      liveTradeFlash = 0;
+    }
+
+    const notifAlpha = tradeCycle < 2.5 ? Math.max(0, 1 - Math.max(0, tradeCycle-1.5)) : 0;
+    drawNewTradeNotif(notifAlpha);
+
+  } else {
+    // End card
+    const endProgress = Math.min(1, (elapsed-30)/1.5);
+    const eased = 1 - Math.pow(1-endProgress, 3);
+    drawEndCard(eased);
+  }
+
+  requestAnimationFrame(draw);
+}
+
+document.fonts.ready.then(() => {
+  requestAnimationFrame(draw);
+});
+</script>
+</body>
+</html>

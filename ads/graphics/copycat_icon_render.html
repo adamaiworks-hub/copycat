@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+* { margin:0; padding:0; background:#00000000; }
+body { width:512px; height:512px; overflow:hidden; }
+canvas { display:block; }
+</style>
+</head>
+<body>
+<canvas id="c" width="512" height="512"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const cx = canvas.getContext('2d');
+
+function drawIcon() {
+  const W = 512, H = 512;
+  const cx_ = cx;
+
+  // Transparent background
+  cx_.clearRect(0, 0, W, H);
+
+  cx_.save();
+  cx_.translate(W/2, H/2 + 30);
+
+  // ── Body ──────────────────────────────────────────────────────────────────
+  const bodyGrad = cx_.createRadialGradient(0, 40, 10, 0, 40, 110);
+  bodyGrad.addColorStop(0, '#3a9e4a');
+  bodyGrad.addColorStop(1, '#1e6b2a');
+  cx_.fillStyle = bodyGrad;
+  cx_.beginPath();
+  cx_.ellipse(0, 60, 90, 110, 0, 0, Math.PI * 2);
+  cx_.fill();
+
+  // Body gold stripes
+  cx_.save();
+  cx_.beginPath();
+  cx_.ellipse(0, 60, 90, 110, 0, 0, Math.PI * 2);
+  cx_.clip();
+  cx_.strokeStyle = '#d4af37';
+  cx_.lineWidth = 10;
+  cx_.globalAlpha = 0.55;
+  for (let i = -6; i <= 6; i++) {
+    cx_.beginPath();
+    cx_.moveTo(i * 28 - 20, -60);
+    cx_.lineTo(i * 28 + 20, 180);
+    cx_.stroke();
+  }
+  cx_.restore();
+
+  // ── Head ──────────────────────────────────────────────────────────────────
+  const headGrad = cx_.createRadialGradient(-10, -120, 10, 0, -110, 80);
+  headGrad.addColorStop(0, '#4ab85a');
+  headGrad.addColorStop(1, '#1e7a2e');
+  cx_.fillStyle = headGrad;
+  cx_.beginPath();
+  cx_.arc(0, -110, 80, 0, Math.PI * 2);
+  cx_.fill();
+
+  // Head gold stripes
+  cx_.save();
+  cx_.beginPath();
+  cx_.arc(0, -110, 80, 0, Math.PI * 2);
+  cx_.clip();
+  cx_.strokeStyle = '#d4af37';
+  cx_.lineWidth = 8;
+  cx_.globalAlpha = 0.45;
+  for (let i = -4; i <= 4; i++) {
+    cx_.beginPath();
+    cx_.moveTo(i * 30 - 15, -200);
+    cx_.lineTo(i * 30 + 15, -20);
+    cx_.stroke();
+  }
+  cx_.restore();
+
+  // ── Ears ────────────────────────────────────────────────────────────────
+  cx_.fillStyle = '#2a8c3a';
+  // Left ear
+  cx_.beginPath();
+  cx_.moveTo(-62, -158);
+  cx_.lineTo(-90, -215);
+  cx_.lineTo(-28, -175);
+  cx_.closePath();
+  cx_.fill();
+  // Inner left ear
+  cx_.fillStyle = '#d4af37';
+  cx_.globalAlpha = 0.5;
+  cx_.beginPath();
+  cx_.moveTo(-62, -162);
+  cx_.lineTo(-82, -208);
+  cx_.lineTo(-34, -176);
+  cx_.closePath();
+  cx_.fill();
+  cx_.globalAlpha = 1;
+
+  // Right ear
+  cx_.fillStyle = '#2a8c3a';
+  cx_.beginPath();
+  cx_.moveTo(56, -168);
+  cx_.lineTo(94, -215);
+  cx_.lineTo(72, -152);
+  cx_.closePath();
+  cx_.fill();
+  cx_.fillStyle = '#d4af37';
+  cx_.globalAlpha = 0.5;
+  cx_.beginPath();
+  cx_.moveTo(58, -164);
+  cx_.lineTo(86, -208);
+  cx_.lineTo(68, -156);
+  cx_.closePath();
+  cx_.fill();
+  cx_.globalAlpha = 1;
+
+  // ── Hat ───────────────────────────────────────────────────────────────────
+  // Hat body
+  cx_.fillStyle = '#0d0d0d';
+  cx_.beginPath();
+  cx_.moveTo(-44, -185);
+  cx_.lineTo(-36, -270);
+  cx_.lineTo(42, -270);
+  cx_.lineTo(50, -185);
+  cx_.closePath();
+  cx_.fill();
+  // Hat brim
+  cx_.fillStyle = '#1a1a1a';
+  cx_.beginPath();
+  cx_.ellipse(4, -185, 58, 14, 0, 0, Math.PI * 2);
+  cx_.fill();
+  // Hat band
+  cx_.fillStyle = '#d4af37';
+  cx_.fillRect(-36, -212, 78, 11);
+
+  // ── Eyes ──────────────────────────────────────────────────────────────────
+  // Glow
+  const eyeGlow = cx_.createRadialGradient(-28, -118, 2, -28, -118, 22);
+  eyeGlow.addColorStop(0, 'rgba(212,175,55,0.6)');
+  eyeGlow.addColorStop(1, 'rgba(212,175,55,0)');
+  cx_.fillStyle = eyeGlow;
+  cx_.beginPath(); cx_.arc(-28, -118, 22, 0, Math.PI*2); cx_.fill();
+  const eyeGlow2 = cx_.createRadialGradient(28, -118, 2, 28, -118, 22);
+  eyeGlow2.addColorStop(0, 'rgba(212,175,55,0.6)');
+  eyeGlow2.addColorStop(1, 'rgba(212,175,55,0)');
+  cx_.fillStyle = eyeGlow2;
+  cx_.beginPath(); cx_.arc(28, -118, 22, 0, Math.PI*2); cx_.fill();
+
+  // Eye iris
+  cx_.fillStyle = '#d4af37';
+  cx_.beginPath(); cx_.arc(-28, -118, 14, 0, Math.PI*2); cx_.fill();
+  cx_.beginPath(); cx_.arc(28, -118, 14, 0, Math.PI*2); cx_.fill();
+  // Pupil
+  cx_.fillStyle = '#111';
+  cx_.beginPath(); cx_.ellipse(-28, -118, 5, 10, 0, 0, Math.PI*2); cx_.fill();
+  cx_.beginPath(); cx_.ellipse(28, -118, 5, 10, 0, 0, Math.PI*2); cx_.fill();
+  // $ symbol
+  cx_.fillStyle = '#fff';
+  cx_.font = 'bold 14px Arial';
+  cx_.textAlign = 'center';
+  cx_.textBaseline = 'middle';
+  cx_.fillText('$', -28, -118);
+  cx_.fillText('$', 28, -118);
+
+  // ── Nose ────────────────────────────────────────────────────────────────
+  cx_.fillStyle = '#d4af37';
+  cx_.beginPath();
+  cx_.moveTo(0, -95);
+  cx_.lineTo(-7, -88);
+  cx_.lineTo(7, -88);
+  cx_.closePath();
+  cx_.fill();
+
+  // ── Whiskers ────────────────────────────────────────────────────────────
+  cx_.strokeStyle = 'rgba(212,175,55,0.7)';
+  cx_.lineWidth = 1.5;
+  [[-38,-90,-88,-84],[-38,-88,-88,-90],[-38,-86,-88,-96],
+   [38,-90,88,-84],[38,-88,88,-90],[38,-86,88,-96]].forEach(([x1,y1,x2,y2]) => {
+    cx_.beginPath(); cx_.moveTo(x1,y1); cx_.lineTo(x2,y2); cx_.stroke();
+  });
+
+  // ── Wide Grin ────────────────────────────────────────────────────────────
+  // Grin background (dark)
+  cx_.fillStyle = '#1a0a00';
+  cx_.beginPath();
+  cx_.moveTo(-62, -82);
+  cx_.quadraticCurveTo(0, -30, 62, -82);
+  cx_.quadraticCurveTo(52, -68, 0, -58);
+  cx_.quadraticCurveTo(-52, -68, -62, -82);
+  cx_.closePath();
+  cx_.fill();
+
+  // Teeth
+  cx_.fillStyle = '#f0f0f0';
+  const teethX = [-48,-32,-16,0,16,32];
+  teethX.forEach(tx => {
+    const topY = -78 + Math.abs(tx) * 0.08;
+    cx_.beginPath();
+    cx_.moveTo(tx - 7, topY);
+    cx_.lineTo(tx + 7, topY);
+    cx_.lineTo(tx + 5, -62);
+    cx_.lineTo(tx - 5, -62);
+    cx_.closePath();
+    cx_.fill();
+  });
+
+  // Grin curve (green lip outline)
+  cx_.strokeStyle = '#1e6b2a';
+  cx_.lineWidth = 2.5;
+  cx_.beginPath();
+  cx_.moveTo(-62, -82);
+  cx_.quadraticCurveTo(0, -30, 62, -82);
+  cx_.stroke();
+
+  // ── Tail ────────────────────────────────────────────────────────────────
+  cx_.strokeStyle = '#2a8c3a';
+  cx_.lineWidth = 12;
+  cx_.lineCap = 'round';
+  cx_.beginPath();
+  cx_.moveTo(80, 80);
+  cx_.quadraticCurveTo(160, 40, 130, -20);
+  cx_.quadraticCurveTo(100, -60, 160, -80);
+  cx_.stroke();
+  cx_.strokeStyle = '#d4af37';
+  cx_.lineWidth = 4;
+  cx_.globalAlpha = 0.5;
+  cx_.beginPath();
+  cx_.moveTo(80, 80);
+  cx_.quadraticCurveTo(160, 40, 130, -20);
+  cx_.quadraticCurveTo(100, -60, 160, -80);
+  cx_.stroke();
+  cx_.globalAlpha = 1;
+
+  cx_.restore();
+}
+
+drawIcon();
+</script>
+</body>
+</html>

@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Rajdhani:wght@600;700&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { width: 1080px; height: 1080px; background: #0d1117; overflow: hidden; }
+canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1080" height="1080"></canvas>
+<script>
+const C  = document.getElementById('c');
+const cx = C.getContext('2d');
+const W  = 1080, H = 1080;
+
+const TOTAL = 18;  // loop duration seconds
+
+let prev = null, t = 0;
+
+// ─── Alert messages that scroll in ────────────────────────────────────────────
+const ALERTS = [
+  { icon: '🔔', text: 'Smart money moved on Trump tariffs',   tag: 'POLITICS',  clr: '#ff6b6b', pct: '+34%', time: '9:04 AM' },
+  { icon: '💰', text: 'Whale bought 50K YES on BTC $100K',    tag: 'CRYPTO',    clr: '#f0a500', pct: '+61%', time: '9:17 AM' },
+  { icon: '📈', text: 'Top trader entered NBA Finals market', tag: 'SPORTS',    clr: '#3fb950', pct: '+28%', time: '10:02 AM' },
+  { icon: '⚡', text: 'Breaking: Fed rate decision imminent', tag: 'ECONOMICS', clr: '#5865f2', pct: '+19%', time: '10:45 AM' },
+  { icon: '🔔', text: 'Volume spike: Gaza ceasefire market',  tag: 'POLITICS',  clr: '#ff6b6b', pct: '+47%', time: '11:30 AM' },
+  { icon: '💰', text: 'Whale sold ETH position — exit signal',tag: 'CRYPTO',    clr: '#f0a500', pct: '-12%', time: '12:01 PM' },
+  { icon: '📈', text: 'New top trader entered leaderboard',   tag: 'SIGNALS',   clr: '#3fb950', pct: '+82%', time: '1:15 PM'  },
+];
+
+// Alert card state
+let alertCards = [];  // {idx, y, vy, alpha, glow}
+let lastAlertSpawn = -999;
+const ALERT_SPACING = 2.2;
+
+// Notification ping state
+let pings = [];
+
+// Cat blink
+let blinkT = 0, nextBlink = 2.5;
+
+// Pulse rings on Discord icon
+let pulseT = 0;
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+function easeInOut(t) { return t < .5 ? 2*t*t : -1+(4-2*t)*t; }
+
+// ─── Draw mini Cheshire cat (head only) ───────────────────────────────────────
+function drawCatHead(x, y, r, alpha, blink) {
+  cx.save();
+  cx.globalAlpha = alpha;
+  cx.translate(x, y);
+
+  // Head
+  const hg = cx.createRadialGradient(-r*.15, -r*.15, r*.1, 0, 0, r);
+  hg.addColorStop(0, '#4ab85a');
+  hg.addColorStop(1, '#1e7a2e');
+  cx.fillStyle = hg;
+  cx.beginPath(); cx.arc(0, 0, r, 0, Math.PI*2); cx.fill();
+
+  // Stripes
+  cx.save();
+  cx.beginPath(); cx.arc(0, 0, r, 0, Math.PI*2); cx.clip();
+  cx.strokeStyle = '#d4af37'; cx.lineWidth = r*.08; cx.globalAlpha = 0.4;
+  for (let i = -4; i <= 4; i++) {
+    cx.beginPath();
+    cx.moveTo(i*r*.35 - r*.15, -r*1.1);
+    cx.lineTo(i*r*.35 + r*.15, r*1.1);
+    cx.stroke();
+  }
+  cx.restore();
+
+  // Ears
+  cx.fillStyle = '#2a8c3a';
+  cx.beginPath(); cx.moveTo(-r*.7,-r*.7); cx.lineTo(-r*.95,-r*1.25); cx.lineTo(-r*.25,-r*.85); cx.closePath(); cx.fill();
+  cx.beginPath(); cx.moveTo(r*.7,-r*.7); cx.lineTo(r*.95,-r*1.25); cx.lineTo(r*.25,-r*.85); cx.closePath(); cx.fill();
+  cx.fillStyle = '#d4af37'; cx.globalAlpha = 0.4;
+  cx.beginPath(); cx.moveTo(-r*.7,-r*.72); cx.lineTo(-r*.88,-r*1.15); cx.lineTo(-r*.3,-r*.86); cx.closePath(); cx.fill();
+  cx.beginPath(); cx.moveTo(r*.7,-r*.72); cx.lineTo(r*.88,-r*1.15); cx.lineTo(r*.3,-r*.86); cx.closePath(); cx.fill();
+  cx.globalAlpha = alpha;
+
+  // Hat
+  cx.fillStyle = '#0d0d0d';
+  cx.beginPath();
+  cx.moveTo(-r*.55,-r*.88); cx.lineTo(-r*.42,-r*1.55); cx.lineTo(r*.48,-r*1.55); cx.lineTo(r*.62,-r*.88);
+  cx.closePath(); cx.fill();
+  cx.fillStyle = '#1a1a1a';
+  cx.beginPath(); cx.ellipse(r*.04,-r*.88,r*.68,r*.17,0,0,Math.PI*2); cx.fill();
+  cx.fillStyle = '#d4af37';
+  cx.fillRect(-r*.42,-r*1.08,r*1.04,r*.14);
+
+  // Eyes
+  if (!blink) {
+    const eg1 = cx.createRadialGradient(-r*.3,-r*.15,0,-r*.3,-r*.15,r*.22);
+    eg1.addColorStop(0,'rgba(212,175,55,0.7)'); eg1.addColorStop(1,'rgba(212,175,55,0)');
+    cx.fillStyle=eg1; cx.beginPath(); cx.arc(-r*.3,-r*.15,r*.22,0,Math.PI*2); cx.fill();
+    const eg2 = cx.createRadialGradient(r*.3,-r*.15,0,r*.3,-r*.15,r*.22);
+    eg2.addColorStop(0,'rgba(212,175,55,0.7)'); eg2.addColorStop(1,'rgba(212,175,55,0)');
+    cx.fillStyle=eg2; cx.beginPath(); cx.arc(r*.3,-r*.15,r*.22,0,Math.PI*2); cx.fill();
+
+    cx.fillStyle='#d4af37';
+    cx.beginPath(); cx.arc(-r*.3,-r*.15,r*.15,0,Math.PI*2); cx.fill();
+    cx.beginPath(); cx.arc(r*.3,-r*.15,r*.15,0,Math.PI*2); cx.fill();
+    cx.fillStyle='#111';
+    cx.beginPath(); cx.ellipse(-r*.3,-r*.15,r*.055,r*.1,0,0,Math.PI*2); cx.fill();
+    cx.beginPath(); cx.ellipse(r*.3,-r*.15,r*.055,r*.1,0,0,Math.PI*2); cx.fill();
+    cx.fillStyle='#fff'; cx.font=`bold ${r*.18}px Arial`; cx.textAlign='center'; cx.textBaseline='middle';
+    cx.fillText('$',-r*.3,-r*.15); cx.fillText('$',r*.3,-r*.15);
+  } else {
+    cx.strokeStyle='#d4af37'; cx.lineWidth=r*.07; cx.lineCap='round';
+    cx.beginPath(); cx.moveTo(-r*.44,-r*.15); cx.lineTo(-r*.16,-r*.15); cx.stroke();
+    cx.beginPath(); cx.moveTo(r*.16,-r*.15); cx.lineTo(r*.44,-r*.15); cx.stroke();
+  }
+
+  // Grin
+  cx.fillStyle='#1a0a00';
+  cx.beginPath();
+  cx.moveTo(-r*.72,r*.1); cx.quadraticCurveTo(0,r*.55,r*.72,r*.1);
+  cx.quadraticCurveTo(r*.55,r*.28,0,r*.36); cx.quadraticCurveTo(-r*.55,r*.28,-r*.72,r*.1);
+  cx.closePath(); cx.fill();
+  cx.fillStyle='#f0f0f0';
+  [-r*.52,-r*.34,-r*.17,0,r*.17,r*.34].forEach(tx => {
+    const ty = r*.12 + Math.abs(tx)*0.06;
+    cx.beginPath(); cx.moveTo(tx-r*.07,ty); cx.lineTo(tx+r*.07,ty);
+    cx.lineTo(tx+r*.055,r*.34); cx.lineTo(tx-r*.055,r*.34); cx.closePath(); cx.fill();
+  });
+  cx.strokeStyle='#1e6b2a'; cx.lineWidth=r*.04;
+  cx.beginPath(); cx.moveTo(-r*.72,r*.1); cx.quadraticCurveTo(0,r*.55,r*.72,r*.1); cx.stroke();
+
+  cx.restore();
+}
+
+// ─── Draw an alert card ────────────────────────────────────────────────────────
+function drawAlertCard(info, x, y, w, alpha, glow) {
+  if (alpha <= 0) return;
+  cx.save();
+  cx.globalAlpha = alpha;
+
+  // Glow pulse
+  if (glow > 0) {
+    cx.shadowColor = info.clr;
+    cx.shadowBlur = 30 * glow;
+  }
+
+  // Card bg
+  const cg = cx.createLinearGradient(x, y, x+w, y+96);
+  cg.addColorStop(0, 'rgba(22,27,34,0.97)');
+  cg.addColorStop(1, 'rgba(13,17,23,0.97)');
+  cx.fillStyle = cg;
+  cx.beginPath(); cx.roundRect(x, y, w, 96, 14); cx.fill();
+  cx.strokeStyle = info.clr; cx.lineWidth = 2; cx.globalAlpha = alpha * 0.5;
+  cx.beginPath(); cx.roundRect(x, y, w, 96, 14); cx.stroke();
+  cx.globalAlpha = alpha;
+  cx.shadowBlur = 0;
+
+  // Left accent bar
+  cx.fillStyle = info.clr;
+  cx.beginPath(); cx.roundRect(x+1, y+10, 4, 76, 2); cx.fill();
+
+  // Icon
+  cx.font = '32px serif'; cx.textBaseline = 'middle';
+  cx.fillText(info.icon, x+22, y+48);
+
+  // Tag pill
+  cx.fillStyle = info.clr + '22';
+  cx.beginPath(); cx.roundRect(x+66, y+14, info.tag.length*9+16, 24, 6); cx.fill();
+  cx.fillStyle = info.clr; cx.font = 'bold 13px Inter,sans-serif';
+  cx.textAlign = 'left'; cx.textBaseline = 'middle';
+  cx.fillText(info.tag, x+74, y+26);
+
+  // Alert text
+  cx.fillStyle = '#e6edf3'; cx.font = '600 18px Inter,sans-serif';
+  cx.textBaseline = 'middle';
+  cx.fillText(info.text, x+66, y+57);
+
+  // Time + pct
+  cx.fillStyle = '#8b949e'; cx.font = '14px Inter,sans-serif';
+  cx.fillText(info.time, x+66, y+76);
+  const pctClr = info.pct.startsWith('+') ? '#3fb950' : '#f85149';
+  cx.fillStyle = pctClr; cx.font = 'bold 15px Inter,sans-serif';
+  cx.textAlign = 'right';
+  cx.fillText(info.pct, x+w-20, y+48);
+
+  cx.restore();
+}
+
+// ─── Background grid ──────────────────────────────────────────────────────────
+function drawBg() {
+  cx.fillStyle = '#0d1117';
+  cx.fillRect(0, 0, W, H);
+
+  // Subtle grid
+  cx.strokeStyle = 'rgba(48,54,61,0.4)';
+  cx.lineWidth = 1;
+  for (let x = 0; x < W; x += 60) { cx.beginPath(); cx.moveTo(x,0); cx.lineTo(x,H); cx.stroke(); }
+  for (let y = 0; y < H; y += 60) { cx.beginPath(); cx.moveTo(0,y); cx.lineTo(W,y); cx.stroke(); }
+
+  // Radial glow top-center
+  const rg = cx.createRadialGradient(W/2, 0, 0, W/2, 0, 600);
+  rg.addColorStop(0, 'rgba(88,101,242,0.18)');
+  rg.addColorStop(0.5, 'rgba(63,185,80,0.06)');
+  rg.addColorStop(1, 'rgba(0,0,0,0)');
+  cx.fillStyle = rg;
+  cx.fillRect(0, 0, W, H);
+}
+
+// ─── Main render ──────────────────────────────────────────────────────────────
+function frame(ts) {
+  if (!prev) prev = ts;
+  const dt = Math.min((ts - prev) / 1000, 0.05);
+  prev = ts;
+  t = (t + dt) % TOTAL;
+
+  drawBg();
+
+  const phase1End = 2.5;   // intro
+  const phase2End = 13;    // alert feed
+  const phase3End = TOTAL; // end card
+
+  // ── PHASE 1: Intro slide-in ─────────────────────────────────────────────
+  if (t < phase1End) {
+    const p = easeOut(Math.min(1, t / phase1End));
+
+    // CopyCat logo
+    const logoY = lerp(-120, 180, p);
+    cx.save(); cx.globalAlpha = p;
+    cx.font = '900 96px Pacifico, cursive'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    const lg = cx.createLinearGradient(W/2-200, 0, W/2+200, 0);
+    lg.addColorStop(0,'#3fb950'); lg.addColorStop(1,'#d4af37');
+    cx.fillStyle = lg;
+    cx.fillText('CopyCat', W/2, logoY);
+    cx.font = '600 28px Rajdhani,sans-serif'; cx.fillStyle = '#8b949e';
+    cx.fillText('Polymarket Intelligence Network', W/2, logoY + 62);
+    cx.restore();
+
+    // Cat head
+    const catY = lerp(-160, 520, p);
+    blinkT += dt;
+    const blink = blinkT > nextBlink && blinkT < nextBlink + 0.12;
+    if (blinkT > nextBlink + 0.12) { blinkT = 0; nextBlink = 2.5 + Math.random()*2; }
+    drawCatHead(W/2, catY, 110, p, blink);
+
+    // Discord badge slide in
+    const bdgX = lerp(W+100, W/2, easeOut(Math.max(0, (t - 1.2) / 1.3)));
+    cx.save(); cx.globalAlpha = Math.max(0, (t-1.2)/1.3);
+    cx.fillStyle = 'rgba(88,101,242,0.15)';
+    cx.beginPath(); cx.roundRect(bdgX-180, 650, 360, 60, 30); cx.fill();
+    cx.strokeStyle = '#5865f2'; cx.lineWidth = 2;
+    cx.beginPath(); cx.roundRect(bdgX-180, 650, 360, 60, 30); cx.stroke();
+    cx.font = 'bold 22px Inter,sans-serif'; cx.fillStyle = '#fff';
+    cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    cx.fillText('🔔  Daily Alerts  ·  $49/mo', bdgX, 680);
+    cx.restore();
+  }
+
+  // ── PHASE 2: Alert feed ─────────────────────────────────────────────────
+  if (t >= phase1End && t < phase2End) {
+    const localT = t - phase1End;
+
+    // Spawn new alerts
+    if (localT - lastAlertSpawn > ALERT_SPACING) {
+      const idx = Math.floor(localT / ALERT_SPACING) % ALERTS.length;
+      alertCards.push({ idx, y: H + 20, vy: -380, alpha: 0, glow: 1 });
+      // ping ring
+      pings.push({ x: 56, y: H/2, r: 0, alpha: 0.9 });
+      lastAlertSpawn = localT;
+    }
+
+    // Update cards
+    alertCards.forEach(card => {
+      card.y  += card.vy * dt;
+      card.vy  = lerp(card.vy, 0, dt * 5);
+      card.alpha = Math.min(1, card.alpha + dt * 3);
+      card.glow  = Math.max(0, card.glow - dt * 1.8);
+      if (card.y < -120) card.alpha = Math.max(0, card.alpha - dt*2);
+    });
+    alertCards = alertCards.filter(c => c.alpha > 0.01);
+
+    // Update pings
+    pings.forEach(p_ => { p_.r += dt * 160; p_.alpha -= dt * 1.2; });
+    pings = pings.filter(p_ => p_.alpha > 0);
+
+    // Draw header
+    cx.save();
+    cx.fillStyle = 'rgba(13,17,23,0.9)';
+    cx.fillRect(0, 0, W, 110);
+    cx.strokeStyle = 'rgba(88,101,242,0.3)'; cx.lineWidth = 1;
+    cx.beginPath(); cx.moveTo(0,110); cx.lineTo(W,110); cx.stroke();
+
+    // Cat small in header
+    blinkT += dt;
+    const blink = blinkT > nextBlink && blinkT < nextBlink + 0.12;
+    if (blinkT > nextBlink + 0.12) { blinkT = 0; nextBlink = 2.5 + Math.random()*2; }
+    drawCatHead(70, 55, 44, 1, blink);
+
+    cx.font = '700 36px Pacifico,cursive'; cx.textAlign = 'left'; cx.textBaseline = 'middle';
+    const lg2 = cx.createLinearGradient(128,0,340,0);
+    lg2.addColorStop(0,'#3fb950'); lg2.addColorStop(1,'#d4af37');
+    cx.fillStyle = lg2; cx.fillText('CopyCat', 128, 44);
+    cx.font = '600 18px Rajdhani,sans-serif'; cx.fillStyle = '#8b949e';
+    cx.fillText('INTELLIGENCE NETWORK', 130, 76);
+
+    // Discord pill
+    cx.fillStyle = 'rgba(88,101,242,0.2)';
+    cx.beginPath(); cx.roundRect(W-260, 28, 230, 52, 26); cx.fill();
+    cx.strokeStyle='#5865f2'; cx.lineWidth=1.5;
+    cx.beginPath(); cx.roundRect(W-260, 28, 230, 52, 26); cx.stroke();
+    cx.font='bold 19px Inter,sans-serif'; cx.fillStyle='#fff'; cx.textAlign='center'; cx.textBaseline='middle';
+    cx.fillText('🔔 $49 / month', W-145, 54);
+    cx.restore();
+
+    // Ping rings
+    pings.forEach(p_ => {
+      cx.save(); cx.globalAlpha = p_.alpha;
+      cx.strokeStyle='#5865f2'; cx.lineWidth=2.5;
+      cx.beginPath(); cx.arc(W-145, 54, p_.r, 0, Math.PI*2); cx.stroke();
+      cx.restore();
+    });
+
+    // Section label
+    cx.save();
+    cx.font='700 20px Inter,sans-serif'; cx.fillStyle='#5865f2'; cx.textAlign='left'; cx.textBaseline='middle';
+    cx.fillText('📡  TODAY\'S ALERTS', 40, 148);
+    cx.fillStyle='rgba(88,101,242,0.2)';
+    cx.beginPath(); cx.moveTo(40,162); cx.lineTo(W-40,162); cx.stroke();
+    cx.strokeStyle='rgba(88,101,242,0.3)'; cx.lineWidth=1;
+    cx.beginPath(); cx.moveTo(40,162); cx.lineTo(W-40,162); cx.stroke();
+    cx.restore();
+
+    // Alert cards
+    alertCards.forEach(card => {
+      drawAlertCard(ALERTS[card.idx], 40, card.y, W-80, card.alpha, card.glow);
+    });
+
+    // Bottom info bar
+    cx.save();
+    cx.fillStyle='rgba(13,17,23,0.95)';
+    cx.fillRect(0, H-100, W, 100);
+    cx.strokeStyle='rgba(88,101,242,0.3)'; cx.lineWidth=1;
+    cx.beginPath(); cx.moveTo(0,H-100); cx.lineTo(W,H-100); cx.stroke();
+    cx.font='600 18px Inter,sans-serif'; cx.fillStyle='#8b949e';
+    cx.textAlign='center'; cx.textBaseline='middle';
+    cx.fillText('New alerts every morning  ·  Trade signals  ·  Smart money moves', W/2, H-65);
+    cx.font='700 20px Inter,sans-serif'; cx.fillStyle='#3fb950';
+    cx.fillText('discord.gg/copycat  ·  $49/mo', W/2, H-36);
+    cx.restore();
+  }
+
+  // ── PHASE 3: End card ────────────────────────────────────────────────────
+  if (t >= phase2End) {
+    const p = easeOut(Math.min(1, (t - phase2End) / 1.5));
+
+    // Discord logo (big)
+    cx.save();
+    cx.globalAlpha = p;
+    // Purple glow bg
+    const dg = cx.createRadialGradient(W/2, 380, 10, W/2, 380, 260);
+    dg.addColorStop(0,'rgba(88,101,242,0.35)');
+    dg.addColorStop(1,'rgba(88,101,242,0)');
+    cx.fillStyle=dg; cx.fillRect(0,0,W,H);
+
+    // Discord circle badge
+    cx.fillStyle='#5865f2';
+    cx.beginPath(); cx.arc(W/2, 340, 120, 0, Math.PI*2); cx.fill();
+    // Discord D logo (simplified)
+    cx.fillStyle='#fff';
+    cx.font='bold 120px Arial'; cx.textAlign='center'; cx.textBaseline='middle';
+    // Discord icon via SVG-style path on canvas
+    const ds = 90;
+    cx.save(); cx.translate(W/2-ds/2+8, 340-ds/2);
+    cx.scale(ds/71, ds/55);
+    const path2d = new Path2D('M60.1 4.9A58.5 58.5 0 0 0 45.6.9a.2.2 0 0 0-.2.1 40.8 40.8 0 0 0-1.8 3.7 54 54 0 0 0-16.2 0A37.5 37.5 0 0 0 25.6 1a.2.2 0 0 0-.2-.1A58.4 58.4 0 0 0 10.9 4.9a.2.2 0 0 0-.1.1C1.6 18.1-.9 31 .3 43.6a.2.2 0 0 0 .1.2 58.8 58.8 0 0 0 17.7 8.9.2.2 0 0 0 .2-.1 42 42 0 0 0 3.6-5.9.2.2 0 0 0-.1-.3 38.7 38.7 0 0 1-5.5-2.6.2.2 0 0 1 0-.4l1.1-.8a.2.2 0 0 1 .2 0c11.5 5.3 24 5.3 35.3 0a.2.2 0 0 1 .2 0l1.1.8a.2.2 0 0 1 0 .4 36.2 36.2 0 0 1-5.5 2.6.2.2 0 0 0-.1.3 47.1 47.1 0 0 0 3.6 5.9.2.2 0 0 0 .2.1 58.7 58.7 0 0 0 17.8-8.9.2.2 0 0 0 .1-.2c1.4-14.9-2.4-27.7-10.1-39.1a.2.2 0 0 0-.1 0ZM23.7 36.2c-3.5 0-6.4-3.2-6.4-7.2s2.8-7.2 6.4-7.2c3.6 0 6.5 3.3 6.4 7.2 0 3.9-2.8 7.2-6.4 7.2Zm23.6 0c-3.5 0-6.4-3.2-6.4-7.2s2.8-7.2 6.4-7.2c3.6 0 6.5 3.3 6.4 7.2 0 3.9-2.8 7.2-6.4 7.2Z');
+    cx.fillStyle='#fff'; cx.fill(path2d);
+    cx.restore();
+
+    // Cat head in top-right
+    const catAlpha = Math.min(1, (t - phase2End - 0.3) / 0.8);
+    drawCatHead(W-110, 110, 80, Math.max(0, catAlpha), false);
+
+    // Main headline
+    const y1 = lerp(H/2 + 60, H/2 + 10, p);
+    cx.font='900 74px Pacifico,cursive'; cx.textAlign='center'; cx.textBaseline='middle';
+    const hg = cx.createLinearGradient(W/2-250,0,W/2+250,0);
+    hg.addColorStop(0,'#5865f2'); hg.addColorStop(0.5,'#fff'); hg.addColorStop(1,'#3fb950');
+    cx.fillStyle=hg; cx.fillText('Join CopyCat', W/2, y1 + 60);
+
+    cx.font='600 32px Rajdhani,sans-serif'; cx.fillStyle='#8b949e';
+    cx.fillText('Daily Alerts · Smart Money Signals · Community', W/2, y1 + 118);
+
+    // Feature pills
+    const pillY = y1 + 190;
+    const pills = ['🔔 Morning alerts', '📈 Trade signals', '💬 Live discussion', '🧠 Smart money'];
+    const pillW = 220, pillH = 52, gap = 18;
+    const totalW = pills.length * pillW + (pills.length-1) * gap;
+    pills.forEach((txt, i) => {
+      const px = W/2 - totalW/2 + i*(pillW+gap);
+      const pa = Math.min(1, Math.max(0, (t - phase2End - 0.2 - i*0.12) / 0.5));
+      cx.save(); cx.globalAlpha = pa;
+      cx.fillStyle='rgba(88,101,242,0.15)';
+      cx.beginPath(); cx.roundRect(px, pillY, pillW, pillH, pillH/2); cx.fill();
+      cx.strokeStyle='rgba(88,101,242,0.5)'; cx.lineWidth=1.5;
+      cx.beginPath(); cx.roundRect(px, pillY, pillW, pillH, pillH/2); cx.stroke();
+      cx.font='600 18px Inter,sans-serif'; cx.fillStyle='#e6edf3';
+      cx.textAlign='center'; cx.textBaseline='middle';
+      cx.fillText(txt, px+pillW/2, pillY+pillH/2);
+      cx.restore();
+    });
+
+    // Price badge
+    const priceA = Math.min(1, Math.max(0, (t - phase2End - 0.5) / 0.6));
+    cx.save(); cx.globalAlpha = priceA;
+    const priceY = pillY + 90;
+    // Badge
+    cx.fillStyle='#5865f2';
+    cx.beginPath(); cx.roundRect(W/2-180, priceY, 360, 90, 16); cx.fill();
+    cx.font='900 52px Inter,sans-serif'; cx.fillStyle='#fff';
+    cx.textAlign='center'; cx.textBaseline='middle';
+    cx.fillText('$49', W/2 - 60, priceY+45);
+    cx.font='600 22px Inter,sans-serif'; cx.fillStyle='rgba(255,255,255,0.75)';
+    cx.textAlign='left';
+    cx.fillText('/ month', W/2 - 16, priceY + 32);
+    cx.font='500 17px Inter,sans-serif';
+    cx.fillText('Cancel anytime', W/2 - 16, priceY + 58);
+    cx.restore();
+
+    // URL
+    const urlA = Math.min(1, Math.max(0, (t - phase2End - 0.8) / 0.5));
+    cx.save(); cx.globalAlpha = urlA;
+    cx.font='700 26px Inter,sans-serif'; cx.fillStyle='#3fb950';
+    cx.textAlign='center'; cx.textBaseline='middle';
+    cx.fillText('copycat.adam-works.co', W/2, pillY + 230);
+    cx.restore();
+
+    cx.restore();
+  }
+
+  requestAnimationFrame(frame);
+}
+
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

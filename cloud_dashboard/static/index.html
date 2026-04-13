@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>CopyCat</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#3fb950">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CopyCat">
+<link rel="apple-touch-icon" href="/icon.svg">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0d1117;--surface:#161b22;--border:#21262d;--border2:#30363d;--text:#e6edf3;--muted:#8b949e;--green:#3fb950;--green2:#2ea043;--blue:#58a6ff;--purple:#d2a8ff;--red:#f85149;--gold:#d4af37}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px;min-height:100vh;min-height:-webkit-fill-available}
+html{height:-webkit-fill-available}
+
+/* ── Login ── */
+#login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+.login-card{width:100%;max-width:420px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:40px 32px}
+.login-logo{font-size:30px;font-weight:800;text-align:center;margin-bottom:6px}.login-logo span{color:var(--green)}
+.login-sub{color:var(--muted);font-size:13px;text-align:center;margin-bottom:28px}
+.login-input{width:100%;background:var(--bg);border:1px solid var(--border2);border-radius:10px;color:var(--text);font-size:14px;padding:14px 16px;outline:none;font-family:monospace;letter-spacing:1px;transition:border .2s}
+.login-input:focus{border-color:var(--green)}
+.login-btn{width:100%;margin-top:12px;background:var(--green2);color:#fff;border:none;border-radius:10px;padding:14px;font-size:15px;font-weight:700;cursor:pointer;transition:background .2s}
+.login-btn:hover{background:var(--green)}
+.login-err{color:var(--red);font-size:13px;text-align:center;margin-top:10px;min-height:18px}
+.login-footer{color:var(--muted);font-size:12px;text-align:center;margin-top:20px}
+.login-footer a{color:var(--blue);text-decoration:none}
+
+/* ── App shell ── */
+#app{display:none;flex-direction:column;min-height:100vh}
+
+/* ── Header ── */
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;gap:10px;flex-wrap:wrap}
+.logo{font-size:17px;font-weight:700}.logo span{color:var(--green)}
+.header-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tier-badge{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;background:#1e2d3d;color:var(--blue);border:1px solid #388bfd}
+.tier-badge.pro{background:#2d1f3d;color:var(--purple);border-color:#8957e5}
+.tier-badge.pro_kalshi{background:#2d1a2d;color:#f0883e;border-color:#d18616}
+.status-pill{display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600;background:#1a2d1e;color:var(--green);border:1px solid var(--green2)}
+.status-pill.offline{background:#2d1a1a;color:var(--red);border-color:#da3633}
+.status-dot{width:7px;height:7px;border-radius:50%;background:currentColor;animation:pulse 2s infinite}
+.status-pill.offline .status-dot{animation:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ── Main ── */
+main{flex:1;padding:16px;max-width:640px;width:100%;margin:0 auto;padding-bottom:80px}
+
+/* ── Tabs ── */
+.tabs{display:flex;gap:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;border-bottom:1px solid var(--border);margin:-16px -16px 16px;padding:0 16px;background:var(--surface)}
+.tabs::-webkit-scrollbar{display:none}
+.tab{padding:11px 16px;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:all .2s;background:none;border-left:none;border-right:none;border-top:none}
+.tab:hover{color:var(--text)}
+.tab.active{color:var(--text);border-bottom-color:var(--green)}
+.tab-pane{display:none}.tab-pane.active{display:block}
+
+/* ── Cards ── */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px}
+.card-label{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin-bottom:8px}
+.card-value{font-size:26px;font-weight:700;line-height:1}
+.card-value.green{color:var(--green)}.card-value.red{color:var(--red)}.card-value.dim{color:var(--muted)}
+.card-sub{margin-top:5px;font-size:11px;color:var(--muted)}
+
+/* ── Section block ── */
+.block{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:14px;overflow:hidden}
+.block-header{padding:13px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+.block-title{font-size:13px;font-weight:600}
+.block-action{font-size:12px;color:var(--blue);cursor:pointer;background:none;border:none;padding:0}
+
+/* ── Table / list rows ── */
+.trade-row{display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--border)}
+.trade-row:last-child{border-bottom:none}
+.trade-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.trade-icon.buy{background:#1a2d1e}.trade-icon.sell{background:#2d1f3d}
+.trade-info{flex:1;min-width:0}
+.trade-market{color:var(--text);font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trade-meta{color:var(--muted);font-size:11px;margin-top:2px}
+.trade-amount{color:var(--green);font-size:13px;font-weight:600;flex-shrink:0}
+
+/* ── Settings rows ── */
+.set-row{padding:13px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--border)}
+.set-row:last-child{border-bottom:none}
+.set-label{font-size:13px;font-weight:500}
+.set-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.set-val{color:var(--muted);font-size:12px;text-align:right}
+.set-val.green{color:var(--green)}.set-val.red{color:var(--red)}
+
+/* ── Form controls ── */
+.inp{background:var(--bg);border:1px solid var(--border2);border-radius:8px;color:var(--text);font-size:14px;padding:8px 12px;outline:none;transition:border .2s;width:100%}
+.inp:focus{border-color:var(--green)}
+.inp-sm{width:80px;text-align:right}
+select.inp{cursor:pointer}
+.seg{display:flex;background:var(--bg);border:1px solid var(--border2);border-radius:8px;overflow:hidden}
+.seg-btn{flex:1;padding:8px 12px;font-size:13px;font-weight:500;color:var(--muted);background:none;border:none;cursor:pointer;transition:all .2s}
+.seg-btn.active{background:var(--green2);color:#fff}
+.toggle{position:relative;width:40px;height:22px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;inset:0;background:var(--border2);border-radius:11px;cursor:pointer;transition:.3s}
+.toggle-slider:before{content:"";position:absolute;width:16px;height:16px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.3s}
+.toggle input:checked + .toggle-slider{background:var(--green2)}
+.toggle input:checked + .toggle-slider:before{transform:translateX(18px)}
+
+/* ── Category pills ── */
+.cat-grid{display:flex;flex-wrap:wrap;gap:8px;padding:14px 16px}
+.cat-pill{padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--border2);color:var(--muted);background:var(--bg);transition:all .2s}
+.cat-pill.active{border-color:var(--green);color:var(--green);background:rgba(63,185,80,.1)}
+.sub-cats{padding:0 16px 12px;display:none}
+.sub-cats.open{display:flex;flex-wrap:wrap;gap:6px}
+.sub-pill{padding:4px 10px;border-radius:20px;font-size:11px;cursor:pointer;border:1px solid var(--border2);color:var(--muted);background:var(--bg);transition:all .2s}
+.sub-pill.active{border-color:var(--blue);color:var(--blue)}
+
+/* ── Wager ── */
+.wager-wrap{padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.wager-group{display:none}.wager-group.active{display:flex;flex-direction:column;gap:8px}
+
+/* ── Trader list ── */
+.trader-row{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border)}
+.trader-row:last-child{border-bottom:none}
+.trader-rank{color:var(--muted);font-size:12px;width:20px;text-align:center;flex-shrink:0}
+.trader-name{flex:1;font-size:13px;font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trader-stat{font-size:11px;color:var(--green);flex-shrink:0}
+.trader-cb{width:16px;height:16px;flex-shrink:0;accent-color:var(--green)}
+
+/* ── Empty ── */
+.empty{padding:36px 20px;text-align:center;color:var(--muted)}
+.empty-icon{font-size:30px;margin-bottom:10px}
+
+/* ── Save btn ── */
+.save-bar{padding:14px 16px;border-top:1px solid var(--border)}
+.save-btn{width:100%;background:var(--green2);color:#fff;border:none;border-radius:10px;padding:12px;font-size:14px;font-weight:700;cursor:pointer;transition:background .2s}
+.save-btn:hover{background:var(--green)}
+.save-btn.saved{background:#1a3a22;color:var(--green)}
+
+/* ── Install banner ── */
+.install-banner{background:linear-gradient(135deg,#1a2d1e,#0d1f14);border:1px solid #2ea043;border-radius:12px;padding:16px;margin-bottom:14px;display:flex;align-items:center;gap:12px}
+.install-banner-icon{font-size:24px;flex-shrink:0}
+.install-banner-text{flex:1}
+.install-banner-title{font-size:14px;font-weight:700;margin-bottom:4px}
+.install-banner-sub{font-size:12px;color:var(--muted)}
+.install-banner-btn{background:var(--green2);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;white-space:nowrap}
+
+/* ── Code block ── */
+.code-block{background:var(--bg);border:1px solid var(--border2);border-radius:8px;padding:12px 14px;font-family:monospace;font-size:12px;color:var(--blue);word-break:break-all;line-height:1.5}
+
+/* ── Bottom nav ── */
+.bottom-nav{background:var(--surface);border-top:1px solid var(--border);display:flex;position:fixed;bottom:0;left:0;right:0;padding-bottom:env(safe-area-inset-bottom);z-index:100}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;padding:9px 0;cursor:pointer;color:var(--muted);font-size:10px;gap:3px;transition:color .2s;border:none;background:none}
+.nav-btn.active{color:var(--green)}
+.nav-icon{font-size:19px}
+
+/* ── Sync indicator ── */
+.sync-info{font-size:11px;color:var(--muted)}
+
+/* ── Logout ── */
+.logout-btn{background:none;border:1px solid var(--border2);color:var(--muted);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;transition:all .2s}
+.logout-btn:hover{color:var(--red);border-color:var(--red)}
+</style>
+</head>
+<body>
+
+<!-- ── Login ── -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">Copy<span>Cat</span></div>
+    <div class="login-sub">Enter your license key to access your dashboard</div>
+    <input class="login-input" id="key-input" type="text" placeholder="CB-MONTHLY-XXXXXXXXXXXXXXXX"
+           autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">
+    <button class="login-btn" onclick="doLogin()">Access Dashboard</button>
+    <div class="login-err" id="login-err"></div>
+    <div class="login-footer">Don't have a key? <a href="https://copycat.adam-works.co">Get CopyCat →</a></div>
+  </div>
+</div>
+
+<!-- ── App ── -->
+<div id="app">
+  <header>
+    <div class="logo">Copy<span>Cat</span></div>
+    <div class="header-right">
+      <div class="tier-badge monthly" id="tier-badge">—</div>
+      <div class="status-pill offline" id="status-pill">
+        <div class="status-dot"></div>
+        <span id="status-text">Offline</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Overview tab -->
+    <div class="tab-pane active" id="pane-overview">
+      <div class="tabs" id="tabs-bar">
+        <button class="tab active" onclick="switchTab('overview')">Overview</button>
+        <button class="tab" onclick="switchTab('trades')">Trades</button>
+        <button class="tab" onclick="switchTab('configure')">Configure</button>
+        <button class="tab" onclick="switchTab('account')">Account</button>
+      </div>
+
+      <div id="offline-banner" style="display:none" class="install-banner">
+        <div class="install-banner-icon">🤖</div>
+        <div class="install-banner-text">
+          <div class="install-banner-title">Bot not detected</div>
+          <div class="install-banner-sub">Install the bot on your computer to start trading</div>
+        </div>
+        <button class="install-banner-btn" onclick="switchTab('account')">Setup →</button>
+      </div>
+
+      <div class="stats-grid">
+        <div class="card">
+          <div class="card-label">Total Trades</div>
+          <div class="card-value" id="stat-trades">—</div>
+          <div class="card-sub">all time</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Invested</div>
+          <div class="card-value" id="stat-invested">—</div>
+          <div class="card-sub">total deployed</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Bot Status</div>
+          <div class="card-value green" id="stat-status">—</div>
+          <div class="card-sub sync-info" id="stat-sync">last sync —</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Errors</div>
+          <div class="card-value dim" id="stat-errors">—</div>
+          <div class="card-sub">all time</div>
+        </div>
+      </div>
+
+      <div class="block">
+        <div class="block-header">
+          <div class="block-title">Recent Trades</div>
+          <button class="block-action" onclick="switchTab('trades')">View all</button>
+        </div>
+        <div id="recent-trades">
+          <div class="empty"><div class="empty-icon">📊</div>No trades yet</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trades tab -->
+    <div class="tab-pane" id="pane-trades">
+      <div class="tabs" id="tabs-bar2">
+        <button class="tab" onclick="switchTab('overview')">Overview</button>
+        <button class="tab active" onclick="switchTab('trades')">Trades</button>
+        <button class="tab" onclick="switchTab('configure')">Configure</button>
+        <button class="tab" onclick="switchTab('account')">Account</button>
+      </div>
+      <div class="block">
+        <div class="block-header"><div class="block-title">All Trades</div></div>
+        <div id="all-trades">
+          <div class="empty"><div class="empty-icon">📊</div>No trades yet</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Configure tab -->
+    <div class="tab-pane" id="pane-configure">
+      <div class="tabs" id="tabs-bar3">
+        <button class="tab" onclick="switchTab('overview')">Overview</button>
+        <button class="tab" onclick="switchTab('trades')">Trades</button>
+        <button class="tab active" onclick="switchTab('configure')">Configure</button>
+        <button class="tab" onclick="switchTab('account')">Account</button>
+      </div>
+
+      <!-- Wager sizing -->
+      <div class="block">
+        <div class="block-header"><div class="block-title">💰 Trade Sizing</div></div>
+        <div class="wager-wrap">
+          <div>
+            <div class="set-sub" style="margin-bottom:8px">Mode</div>
+            <div class="seg" id="wager-seg">
+              <button class="seg-btn active" id="seg-fixed" onclick="setWagerMode('fixed')">Fixed $</button>
+              <button class="seg-btn" id="seg-pct" onclick="setWagerMode('pct')">% Balance</button>
+            </div>
+          </div>
+          <div class="wager-group active" id="fixed-group">
+            <div class="set-sub">Amount per trade (USD)</div>
+            <select class="inp" id="wager-fixed">
+              <option value="5">$5</option>
+              <option value="10" selected>$10</option>
+              <option value="15">$15</option>
+              <option value="20">$20</option>
+              <option value="25">$25</option>
+              <option value="50">$50</option>
+              <option value="75">$75</option>
+              <option value="100">$100</option>
+              <option value="150">$150</option>
+              <option value="200">$200</option>
+              <option value="500">$500</option>
+              <option value="1000">$1,000</option>
+            </select>
+          </div>
+          <div class="wager-group" id="pct-group">
+            <div class="set-sub">% of balance per trade</div>
+            <select class="inp" id="wager-pct">
+              <option value="1">1%</option>
+              <option value="2" selected>2%</option>
+              <option value="3">3%</option>
+              <option value="5">5%</option>
+              <option value="10">10%</option>
+              <option value="15">15%</option>
+              <option value="20">20%</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Risk limits -->
+      <div class="block">
+        <div class="block-header"><div class="block-title">🛡️ Risk Limits</div></div>
+        <div class="set-row">
+          <div><div class="set-label">Daily Loss Limit</div><div class="set-sub">Stop trading if daily loss exceeds</div></div>
+          <select class="inp inp-sm" id="daily-loss">
+            <option value="25">$25</option>
+            <option value="50">$50</option>
+            <option value="100" selected>$100</option>
+            <option value="200">$200</option>
+            <option value="500">$500</option>
+            <option value="1000">$1k</option>
+          </select>
+        </div>
+        <div class="set-row">
+          <div><div class="set-label">Max Daily Trades</div><div class="set-sub">Hard cap per day</div></div>
+          <select class="inp inp-sm" id="max-trades">
+            <option value="5">5</option>
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
+            <option value="30">30</option>
+            <option value="50">50</option>
+          </select>
+        </div>
+        <div class="set-row">
+          <div><div class="set-label">Scan All Simultaneously</div><div class="set-sub">Check all traders at once vs. sequentially</div></div>
+          <label class="toggle"><input type="checkbox" id="scan-all"><span class="toggle-slider"></span></label>
+        </div>
+      </div>
+
+      <!-- Categories -->
+      <div class="block" id="cat-block">
+        <div class="block-header"><div class="block-title">📡 Market Categories</div></div>
+        <div id="cat-locked" style="display:none" class="set-row">
+          <div><div class="set-label">Pro Feature</div><div class="set-sub">Upgrade to Pro to filter by category</div></div>
+          <a href="https://copycat.adam-works.co" style="font-size:12px;color:var(--blue);text-decoration:none">Upgrade →</a>
+        </div>
+        <div id="cat-content">
+          <div class="set-sub" style="padding:10px 16px">Select which market categories the bot should trade</div>
+          <div class="cat-grid" id="cat-pills"></div>
+        </div>
+      </div>
+
+      <!-- Trader selection -->
+      <div class="block">
+        <div class="block-header">
+          <div class="block-title">🎯 Trader Selection</div>
+          <span class="sync-info" id="trader-count-label"></span>
+        </div>
+        <div id="trader-locked" style="display:none" class="set-row">
+          <div><div class="set-label">Pro Feature</div><div class="set-sub">Upgrade to manually select traders to copy</div></div>
+          <a href="https://copycat.adam-works.co" style="font-size:12px;color:var(--blue);text-decoration:none">Upgrade →</a>
+        </div>
+        <div id="trader-content">
+          <div class="set-row">
+            <div><div class="set-label">Category</div></div>
+            <select class="inp" id="trader-cat" onchange="loadTraders()" style="width:140px">
+              <option value="overall">Overall</option>
+              <option value="bitcoin">Bitcoin</option>
+              <option value="ethereum">Ethereum</option>
+              <option value="us_elections">Elections</option>
+              <option value="trump">Trump / Admin</option>
+              <option value="nfl">NFL</option>
+              <option value="nba">NBA</option>
+              <option value="fed">Federal Reserve</option>
+            </select>
+          </div>
+          <div id="trader-list">
+            <div class="empty"><div class="empty-icon">⏳</div>Loading traders…</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="save-bar">
+        <button class="save-btn" id="save-btn" onclick="saveConfig()">Save Settings</button>
+      </div>
+    </div>
+
+    <!-- Account tab -->
+    <div class="tab-pane" id="pane-account">
+      <div class="tabs" id="tabs-bar4">
+        <button class="tab" onclick="switchTab('overview')">Overview</button>
+        <button class="tab" onclick="switchTab('trades')">Trades</button>
+        <button class="tab" onclick="switchTab('configure')">Configure</button>
+        <button class="tab active" onclick="switchTab('account')">Account</button>
+      </div>
+
+      <div class="block">
+        <div class="block-header"><div class="block-title">📋 License</div></div>
+        <div class="set-row"><div class="set-label">Key</div><div class="set-val" id="acct-key" style="font-family:monospace;font-size:11px">—</div></div>
+        <div class="set-row"><div class="set-label">Plan</div><div class="set-val green" id="acct-tier">—</div></div>
+        <div class="set-row"><div class="set-label">Max Traders</div><div class="set-val" id="acct-max-traders">—</div></div>
+        <div class="set-row"><div class="set-label">Custom Sizing</div><div class="set-val" id="acct-sizing">—</div></div>
+        <div class="set-row"><div class="set-label">Analytics</div><div class="set-val" id="acct-analytics">—</div></div>
+        <div class="set-row"><div class="set-label">Kalshi Bot</div><div class="set-val" id="acct-kalshi">—</div></div>
+      </div>
+
+      <div class="block">
+        <div class="block-header"><div class="block-title">🚀 Install Bot</div></div>
+        <div style="padding:16px;display:flex;flex-direction:column;gap:12px">
+          <div class="set-sub" style="line-height:1.6">The trading bot runs on your computer. Run this command in Terminal to install:</div>
+          <div class="code-block">bash &lt;(curl -s https://copycat.adam-works.co/install.sh)</div>
+          <div class="set-sub">Once installed, the bot syncs automatically to this dashboard. Takes ~60 seconds.</div>
+        </div>
+      </div>
+
+      <div class="block">
+        <div class="block-header"><div class="block-title">💬 Community</div></div>
+        <div style="padding:16px;text-align:center">
+          <div class="set-sub" style="margin-bottom:14px">Daily signals, setup help, and trade alerts.</div>
+          <a href="https://discord.gg/4tZqtuYh" style="display:inline-block;background:#5865f2;color:#fff;font-size:13px;font-weight:700;padding:10px 24px;border-radius:8px;text-decoration:none">Join Discord →</a>
+        </div>
+      </div>
+
+      <div class="block">
+        <div class="block-header"><div class="block-title">Account</div></div>
+        <div class="set-row">
+          <button class="logout-btn" onclick="doLogout()">Sign Out</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <nav class="bottom-nav">
+    <button class="nav-btn active" id="nav-overview" onclick="switchTab('overview')"><span class="nav-icon">📊</span>Overview</button>
+    <button class="nav-btn" id="nav-trades" onclick="switchTab('trades')"><span class="nav-icon">📋</span>Trades</button>
+    <button class="nav-btn" id="nav-configure" onclick="switchTab('configure')"><span class="nav-icon">⚙️</span>Settings</button>
+    <button class="nav-btn" id="nav-account" onclick="switchTab('account')"><span class="nav-icon">👤</span>Account</button>
+  </nav>
+</div>
+
+<script>
+const TABS = ['overview','trades','configure','account'];
+let _tier = 'monthly';
+let _licData = {};
+let _selectedTraders = new Set();
+let _catState = {};   // {sports: true, nfl: true, ...}
+
+// ── Tab switching ────────────────────────────────────────────────────────────
+function switchTab(name) {
+  TABS.forEach(t => {
+    document.getElementById('pane-'+t).classList.toggle('active', t===name);
+    document.getElementById('nav-'+t).classList.toggle('active', t===name);
+  });
+  if (name === 'trades') loadAllTrades();
+  if (name === 'configure') loadConfigure();
+}
+
+// ── Auth ────────────────────────────────────────────────────────────────────
+async function doLogin() {
+  const key = document.getElementById('key-input').value.trim().toUpperCase();
+  const err = document.getElementById('login-err');
+  err.textContent = '';
+  if (!key) { err.textContent = 'Enter your license key'; return; }
+  try {
+    const res = await fetch('/api/auth/login', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({key})
+    });
+    const data = await res.json();
+    if (!res.ok) { err.textContent = data.error || 'Invalid key'; return; }
+    initApp(key, data.tier, data.lic || {});
+  } catch(e) { err.textContent = 'Connection error — try again'; }
+}
+
+document.getElementById('key-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+
+async function doLogout() {
+  await fetch('/api/auth/logout', {method:'POST'});
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+// ── App init ────────────────────────────────────────────────────────────────
+function initApp(key, tier, lic) {
+  _tier = (tier||'monthly').toLowerCase();
+  _licData = lic;
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+
+  const badge = document.getElementById('tier-badge');
+  badge.textContent = tier || 'Monthly';
+  badge.className = 'tier-badge ' + _tier.replace(' ','_');
+
+  // Account tab
+  document.getElementById('acct-key').textContent = key;
+  document.getElementById('acct-tier').textContent = lic.label || tier;
+  document.getElementById('acct-max-traders').textContent = lic.max_traders || 5;
+  document.getElementById('acct-sizing').textContent = lic.custom_sizing ? '✓ Included' : '✗ Monthly only';
+  document.getElementById('acct-analytics').textContent = lic.pro_analytics ? '✓ Included' : '✗ Pro only';
+  document.getElementById('acct-kalshi').textContent = lic.kalshi_bot ? '✓ Included' : '✗ Add-on';
+
+  loadOverview();
+  setInterval(loadOverview, 15000);
+}
+
+// ── Overview ────────────────────────────────────────────────────────────────
+async function loadOverview() {
+  try {
+    const [statusR, statsR] = await Promise.all([
+      fetch('/api/status'), fetch('/api/stats')
+    ]);
+    const status = await statusR.json();
+    const stats  = await statsR.json();
+
+    const pill = document.getElementById('status-pill');
+    const text = document.getElementById('status-text');
+    const statStatus = document.getElementById('stat-status');
+    const banner = document.getElementById('offline-banner');
+
+    if (status.online && status.running) {
+      pill.className = 'status-pill'; text.textContent = 'Online';
+      statStatus.textContent = 'Running'; statStatus.className = 'card-value green';
+      banner.style.display = 'none';
+    } else if (status.online) {
+      pill.className = 'status-pill'; text.textContent = 'Connected';
+      statStatus.textContent = 'Connected'; statStatus.className = 'card-value green';
+      banner.style.display = 'none';
+    } else if (status.last_seen) {
+      pill.className = 'status-pill offline'; text.textContent = 'Offline';
+      statStatus.textContent = 'Offline'; statStatus.className = 'card-value dim';
+      banner.style.display = 'none';
+    } else {
+      pill.className = 'status-pill offline'; text.textContent = 'Not installed';
+      statStatus.textContent = 'Not installed'; statStatus.className = 'card-value dim';
+      banner.style.display = 'flex';
+    }
+
+    if (status.last_seen) {
+      const age = Math.round((Date.now() - new Date(status.last_seen)) / 60000);
+      document.getElementById('stat-sync').textContent = age < 1 ? 'synced just now' : `synced ${age}m ago`;
+    }
+
+    document.getElementById('stat-trades').textContent = stats.total_trades ?? '—';
+    document.getElementById('stat-invested').textContent = stats.total_invested != null
+      ? '$' + Number(stats.total_invested).toLocaleString() : '—';
+    document.getElementById('stat-errors').textContent = stats.errors ?? '—';
+
+    renderTrades(stats.recent_trades || [], 'recent-trades');
+  } catch(e) {}
+}
+
+// ── Trades ──────────────────────────────────────────────────────────────────
+async function loadAllTrades() {
+  const res = await fetch('/api/trades?limit=100');
+  const trades = await res.json();
+  renderTrades(trades, 'all-trades');
+}
+
+function renderTrades(trades, containerId) {
+  const el = document.getElementById(containerId);
+  if (!trades.length) {
+    el.innerHTML = '<div class="empty"><div class="empty-icon">📊</div>No trades yet — start your bot to begin copying</div>';
+    return;
+  }
+  el.innerHTML = trades.map(t => {
+    const isBuy = t.type === 'copy_buy';
+    const market = (t.slug || 'Market').replace(/-/g,' ').slice(0,45);
+    const price = t.price ? Math.round(t.price * 100) + '¢' : '';
+    const amt = t.amount ? '$' + t.amount : '';
+    const ts = t.ts ? new Date(t.ts).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+    return [
+      '<div class="trade-row">',
+      '<div class="trade-icon ' + (isBuy?'buy':'sell') + '">' + (isBuy?'📥':'📤') + '</div>',
+      '<div class="trade-info">',
+      '<div class="trade-market">' + market + '</div>',
+      '<div class="trade-meta">' + (t.outcome||'Yes') + ' ' + price + ' · ' + ts + '</div>',
+      '</div>',
+      '<div class="trade-amount">' + amt + '</div>',
+      '</div>'
+    ].join('');
+  }).join('');
+}
+
+// ── Configure ────────────────────────────────────────────────────────────────
+const CAT_HIERARCHY = {
+  sports:    {label:'Sports',    icon:'🏆', children:{nfl:{label:'NFL'},nba:{label:'NBA'},mlb:{label:'MLB'},nhl:{label:'NHL'},soccer:{label:'Soccer'},mma:{label:'MMA/UFC'},golf:{label:'Golf'},tennis:{label:'Tennis'},f1:{label:'F1'}}},
+  crypto:    {label:'Crypto',    icon:'₿',  children:{bitcoin:{label:'Bitcoin'},ethereum:{label:'Ethereum'},solana:{label:'Solana'},altcoins:{label:'Altcoins'}}},
+  politics:  {label:'Politics',  icon:'🏛️', children:{us_elections:{label:'US Elections'},trump:{label:'Trump/Admin'},congress:{label:'Congress'},international:{label:'International'}}},
+  economics: {label:'Economics', icon:'📈', children:{fed:{label:'Fed Reserve'},inflation:{label:'Inflation/CPI'},stocks:{label:'Stock Market'},gdp:{label:'GDP/Jobs'}}},
+};
+
+async function loadConfigure() {
+  try {
+    const [cfg, licR] = await Promise.all([
+      fetch('/api/config').then(r=>r.json()),
+      fetch('/api/me').then(r=>r.json()),
+    ]);
+    const isPro = _licData.pro_analytics || cfg._is_pro;
+
+    // Wager
+    setWagerMode(cfg.wager_mode || 'fixed', true);
+    const fv = document.getElementById('wager-fixed');
+    const pv = document.getElementById('wager-pct');
+    if (fv) fv.value = String(cfg.wager_fixed || 10);
+    if (pv) pv.value = String(cfg.wager_pct || 2);
+
+    // Apply tier limits
+    const minW = _licData.min_wager || 5;
+    const maxW = _licData.max_wager || 10000;
+    const maxP = _licData.max_wager_pct || 100;
+    document.querySelectorAll('#wager-fixed option').forEach(o => {
+      const v = parseInt(o.value);
+      o.hidden = v < minW || v > maxW;
+    });
+    document.querySelectorAll('#wager-pct option').forEach(o => {
+      o.hidden = parseInt(o.value) > maxP;
+    });
+
+    // Risk
+    const dl = document.getElementById('daily-loss');
+    const mt = document.getElementById('max-trades');
+    const sa = document.getElementById('scan-all');
+    if (dl) dl.value = String(cfg.daily_loss_limit || 100);
+    if (mt) mt.value = String(cfg.max_daily_trades || 20);
+    if (sa) sa.checked = !!cfg.scan_all_simultaneously;
+
+    // Categories
+    _catState = cfg.categories || {};
+    if (isPro) {
+      document.getElementById('cat-locked').style.display = 'none';
+      document.getElementById('cat-content').style.display = 'block';
+      renderCatPills();
+    } else {
+      document.getElementById('cat-locked').style.display = 'flex';
+      document.getElementById('cat-content').style.display = 'none';
+    }
+
+    // Traders
+    _selectedTraders = new Set(cfg.selected_traders || []);
+    if (isPro) {
+      document.getElementById('trader-locked').style.display = 'none';
+      document.getElementById('trader-content').style.display = 'block';
+      updateTraderCount();
+      loadTraders();
+    } else {
+      document.getElementById('trader-locked').style.display = 'flex';
+      document.getElementById('trader-content').style.display = 'none';
+    }
+  } catch(e) { console.error('loadConfigure', e); }
+}
+
+function setWagerMode(mode, init) {
+  const isFixed = mode === 'fixed';
+  document.getElementById('seg-fixed').classList.toggle('active', isFixed);
+  document.getElementById('seg-pct').classList.toggle('active', !isFixed);
+  document.getElementById('fixed-group').classList.toggle('active', isFixed);
+  document.getElementById('pct-group').classList.toggle('active', !isFixed);
+}
+
+function renderCatPills() {
+  const el = document.getElementById('cat-pills');
+  el.innerHTML = Object.entries(CAT_HIERARCHY).map(([key, cat]) => {
+    const active = _catState[key] === true || Object.keys(cat.children||{}).some(c => _catState[c]);
+    return [
+      '<div style="width:100%">',
+      '<span class="cat-pill ' + (active?'active':'') + '" data-cat="' + key + '" onclick="toggleCat(this,\'' + key + '\')">' + cat.icon + ' ' + cat.label + '</span>',
+      '<div class="sub-cats ' + (active?'open':'') + '" id="sub-' + key + '">',
+      Object.entries(cat.children||{}).map(([sk, sc]) => {
+        const sa = !!_catState[sk];
+        return '<span class="sub-pill ' + (sa?'active':'') + '" data-sub="' + sk + '" onclick="toggleSub(this,\'' + sk + '\')">' + sc.label + '</span>';
+      }).join(''),
+      '</div></div>'
+    ].join('');
+  }).join('');
+}
+
+function toggleCat(el, key) {
+  el.classList.toggle('active');
+  const isActive = el.classList.contains('active');
+  _catState[key] = isActive;
+  const sub = document.getElementById('sub-'+key);
+  if (sub) sub.classList.toggle('open', isActive);
+}
+
+function toggleSub(el, key) {
+  el.classList.toggle('active');
+  _catState[key] = el.classList.contains('active');
+}
+
+async function loadTraders() {
+  const cat = document.getElementById('trader-cat').value;
+  const list = document.getElementById('trader-list');
+  list.innerHTML = '<div class="empty"><div class="empty-icon">⏳</div>Loading…</div>';
+  try {
+    const data = await fetch('/api/traders?category=' + cat + '&limit=20').then(r=>r.json());
+    const traders = Array.isArray(data) ? data : (data.traders || []);
+    if (!traders.length) {
+      list.innerHTML = '<div class="empty"><div class="empty-icon">🔍</div>No traders found</div>';
+      return;
+    }
+    list.innerHTML = traders.map((t,i) => {
+      const addr = t.address || t.id || '';
+      const name = t.username || (addr.slice(0,8)+'…'+addr.slice(-4));
+      const pnl  = t.pnl != null ? '+$'+Number(t.pnl).toLocaleString() : '';
+      const chk  = _selectedTraders.has(addr);
+      return [
+        '<div class="trader-row">',
+        '<span class="trader-rank">' + (i+1) + '</span>',
+        '<span class="trader-name">' + name + '</span>',
+        '<span class="trader-stat">' + pnl + '</span>',
+        '<input type="checkbox" class="trader-cb" ' + (chk?'checked':'') + ' onchange="toggleTrader(this,\'' + addr + '\')" />',
+        '</div>'
+      ].join('');
+    }).join('');
+    updateTraderCount();
+  } catch(e) {
+    list.innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div>Failed to load traders</div>';
+  }
+}
+
+function toggleTrader(el, addr) {
+  if (el.checked) _selectedTraders.add(addr);
+  else _selectedTraders.delete(addr);
+  updateTraderCount();
+}
+
+function updateTraderCount() {
+  const max = _licData.max_traders || 5;
+  const el = document.getElementById('trader-count-label');
+  if (el) el.textContent = _selectedTraders.size + ' / ' + max + ' selected';
+}
+
+async function saveConfig() {
+  const btn = document.getElementById('save-btn');
+  const mode = document.getElementById('seg-fixed').classList.contains('active') ? 'fixed' : 'pct';
+  const cfg = {
+    wager_mode: mode,
+    wager_fixed: parseFloat(document.getElementById('wager-fixed').value),
+    wager_pct: parseFloat(document.getElementById('wager-pct').value),
+    daily_loss_limit: parseFloat(document.getElementById('daily-loss').value),
+    max_daily_trades: parseInt(document.getElementById('max-trades').value),
+    scan_all_simultaneously: document.getElementById('scan-all').checked,
+    categories: _catState,
+    selected_traders: Array.from(_selectedTraders),
+  };
+  await fetch('/api/config', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(cfg)
+  });
+  btn.textContent = 'Saved ✓';
+  btn.className = 'save-btn saved';
+  setTimeout(() => { btn.textContent = 'Save Settings'; btn.className = 'save-btn'; }, 2500);
+}
+
+// ── Session restore ──────────────────────────────────────────────────────────
+async function init() {
+  try {
+    const res = await fetch('/api/me');
+    if (res.ok) {
+      const me = await res.json();
+      if (me.license_key) {
+        initApp(me.license_key, me.tier, me.lic || {});
+        return;
+      }
+    }
+  } catch(e) {}
+}
+
+// ── PWA ─────────────────────────────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js');
+}
+
+init();
+</script>
+</body>
+</html>

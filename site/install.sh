@@ -6,7 +6,7 @@
 
 set -e
 
-REPO="https://github.com/adam-works/copycat/archive/refs/heads/main.tar.gz"
+REPO="https://github.com/adamaiworks-hub/copycat/archive/refs/heads/main.tar.gz"
 INSTALL_DIR="$HOME/.copycat"
 VENV_DIR="$INSTALL_DIR/venv"
 GREEN='\033[0;32m'
