@@ -1,0 +1,10 @@
+.env
+*.db
+*.db-journal
+.bot.pid
+trades_log.jsonl
+license.json
+__pycache__/
+*.pyc
+venv/
+.DS_Store
