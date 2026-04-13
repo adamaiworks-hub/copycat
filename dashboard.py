@@ -543,6 +543,35 @@ def api_traders():
 def api_categories():
     return jsonify(CATEGORY_HIERARCHY)
 
+KALSHI_CREDS_FILE = Path(__file__).parent / ".kalshi_creds.json"
+
+@app.get("/api/kalshi/credentials")
+def get_kalshi_creds():
+    if not KALSHI_CREDS_FILE.exists():
+        return jsonify({})
+    try:
+        data = json.loads(KALSHI_CREDS_FILE.read_text())
+        # Mask private key for display
+        pk = data.get("private_key", "")
+        if pk:
+            data["private_key"] = pk  # return full for re-display in textarea
+        return jsonify(data)
+    except Exception:
+        return jsonify({})
+
+@app.post("/api/kalshi/credentials")
+def save_kalshi_creds():
+    data = request.json or {}
+    key_id     = data.get("key_id", "").strip()
+    private_key = data.get("private_key", "").strip()
+    if not key_id or not private_key:
+        return jsonify({"error": "key_id and private_key required"}), 400
+    KALSHI_CREDS_FILE.write_text(json.dumps({
+        "key_id": key_id,
+        "private_key": private_key
+    }, indent=2))
+    return jsonify({"ok": True})
+
 _BULLPEN_CREDS = Path.home() / ".bullpen" / "credentials.json"
 
 @app.get("/api/connection")
@@ -1234,6 +1263,28 @@ td{padding:11px 16px;color:#c9d1d9;white-space:nowrap}
       <div class="license-msg" id="licMsg" style="display:none"></div>
     </div>
 
+    <!-- Kalshi Account -->
+    <div class="settings-section" id="kalshiSection" style="display:none">
+      <div class="settings-section-title">🤖 Kalshi Account</div>
+      <div class="setting-row">
+        <span class="setting-label">API Key ID</span>
+        <input class="license-input" id="kalshiKeyId" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" style="font-family:monospace;font-size:12px;width:240px" />
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">Private Key (PEM)</span>
+      </div>
+      <div style="padding:0 16px 12px">
+        <textarea id="kalshiPrivKey" placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;...&#10;-----END RSA PRIVATE KEY-----" style="width:100%;min-height:100px;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#e6edf3;font-family:monospace;font-size:11px;padding:10px;resize:vertical;outline:none"></textarea>
+      </div>
+      <div style="padding:0 16px 12px;display:flex;gap:10px;align-items:center">
+        <button class="btn btn-ghost" onclick="saveKalshiCreds()">Save Kalshi Credentials</button>
+        <span id="kalshiMsg" style="font-size:12px;color:#3fb950;display:none">✓ Saved</span>
+      </div>
+      <div style="padding:0 16px 12px">
+        <a href="https://kalshi.com/account/api" target="_blank" style="font-size:12px;color:#58a6ff;text-decoration:none">Get your Kalshi API key → kalshi.com/account/api</a>
+      </div>
+    </div>
+
     <div class="setting-card">
       <h3>Bot Configuration</h3>
       <div class="setting-row"><span class="setting-label">Trade Amount</span><span class="setting-val">$10 per trade</span></div>
@@ -1548,6 +1599,27 @@ async function loadSettings() {
   document.getElementById('setMaxTraders').textContent  = lic.max_traders;
   document.getElementById('setProAnalytics').textContent = lic.pro_analytics ? '✓ Included' : '✗ Monthly only';
   document.getElementById('setKalshi').textContent      = lic.kalshi_bot ? '✓ Included' : '✗ Add-on ($99)';
+
+  // Show Kalshi section if tier includes it
+  if (lic.kalshi_bot) {
+    document.getElementById('kalshiSection').style.display = 'block';
+    const creds = await fetch('/api/kalshi/credentials').then(r => r.json()).catch(() => ({}));
+    if (creds.key_id) document.getElementById('kalshiKeyId').value = creds.key_id;
+    if (creds.private_key) document.getElementById('kalshiPrivKey').value = creds.private_key;
+  }
+}
+
+async function saveKalshiCreds() {
+  const key_id     = document.getElementById('kalshiKeyId').value.trim();
+  const private_key = document.getElementById('kalshiPrivKey').value.trim();
+  if (!key_id || !private_key) { alert('Enter both Key ID and Private Key'); return; }
+  await fetch('/api/kalshi/credentials', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({key_id, private_key})
+  });
+  const msg = document.getElementById('kalshiMsg');
+  msg.style.display = 'inline';
+  setTimeout(() => msg.style.display = 'none', 3000);
 }
 
 async function activateLicense() {
