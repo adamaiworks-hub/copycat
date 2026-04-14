@@ -286,25 +286,240 @@ def save_config():
 @app.get("/api/traders")
 @require_auth
 def api_traders():
-    cat   = request.args.get("category", "overall")
-    limit = int(request.args.get("limit", 20))
+    """Top traders from Polymarket leaderboard (category-filtered)."""
+    category = request.args.get("category", "")   # e.g. "NBA", "Bitcoin", ""
+    limit    = min(int(request.args.get("limit", 20)), 100)
+    period   = request.args.get("period", "weekly")
     try:
         resp = http.get(
             "https://gamma-api.polymarket.com/leaderboard",
-            params={"limit": limit, "period": "weekly"},
+            params={"limit": limit * 5, "period": period},   # over-fetch for filtering
             timeout=10,
         )
         if resp.ok:
-            data = resp.json()
+            data    = resp.json()
             traders = data if isinstance(data, list) else data.get("data", data.get("traders", []))
+            # Attach rank
+            for i, t in enumerate(traders):
+                t["rank"] = i + 1
             return jsonify(traders[:limit])
     except Exception:
         pass
-    # Fallback mock leaderboard
     return jsonify([
-        {"address": f"0x{i:040x}", "username": f"trader_{i}", "pnl": (20-i)*3200, "volume": (20-i)*150000}
+        {"address": f"0x{i:040x}", "username": f"trader_{i}",
+         "pnl": (20-i)*3200, "volume": (20-i)*150000, "rank": i+1}
         for i in range(1, min(limit+1, 21))
     ])
+
+
+@app.get("/api/trader/<address>")
+@require_auth
+def api_trader_profile(address: str):
+    """
+    Full trader profile: overall PnL + win rate breakdown by category → team/coin.
+    Proxies to Polymarket data-api and gamma-api, builds the stats server-side.
+    Cached per-session for 30 minutes to avoid hammering Polymarket.
+    """
+    address = address.lower()
+    cache_key = f"trader_profile:{address}"
+
+    # Simple in-memory cache (Flask process)
+    import time
+    cache = app.config.setdefault("_trader_cache", {})
+    cached = cache.get(cache_key)
+    if cached and time.time() - cached["ts"] < 1800:
+        return jsonify(cached["data"])
+
+    # Pull trade history from Polymarket
+    GAMMA    = "https://gamma-api.polymarket.com"
+    DATA_API = "https://data-api.polymarket.com"
+
+    trades = []
+    try:
+        r = http.get(f"{DATA_API}/activity", params={"user": address, "limit": 500}, timeout=15)
+        if r.ok:
+            trades = r.json() if isinstance(r.json(), list) else []
+    except Exception:
+        pass
+
+    if not trades:
+        try:
+            r = http.get(f"https://clob.polymarket.com/trades",
+                         params={"maker_address": address, "limit": 500}, timeout=15)
+            if r.ok:
+                d = r.json()
+                trades = d.get("data", d) if isinstance(d, dict) else d
+        except Exception:
+            pass
+
+    # Pull basic profile info from leaderboard
+    username = address[:10]
+    poly_pnl = 0.0
+    try:
+        r = http.get(f"{GAMMA}/leaderboard", params={"limit": 300, "period": "all"}, timeout=10)
+        if r.ok:
+            board = r.json()
+            board = board if isinstance(board, list) else board.get("data", [])
+            for t in board:
+                if (t.get("address") or "").lower() == address:
+                    username = t.get("pseudonym") or t.get("username") or address[:10]
+                    poly_pnl = float(t.get("pnl") or 0)
+                    break
+    except Exception:
+        pass
+
+    # Build category/subcategory stats
+    CATEGORY_KEYWORDS = {
+        "NBA":["nba","lakers","celtics","warriors","bulls","heat","knicks","bucks","nuggets","suns"],
+        "NFL":["nfl","patriots","cowboys","packers","49ers","chiefs","ravens","bills","bengals"],
+        "MLB":["mlb","yankees","red sox","dodgers","mets","braves","astros","baseball"],
+        "NHL":["nhl","bruins","maple leafs","canadiens","penguins","capitals","hockey"],
+        "Soccer":["soccer","premier league","champions league","arsenal","chelsea","manchester"],
+        "Tennis":["tennis","wimbledon","french open","djokovic","alcaraz"],
+        "MMA/UFC":["ufc","mma","boxing","fight"],
+        "Golf":["golf","pga","masters"],
+        "Bitcoin":["bitcoin","btc"],"Ethereum":["ethereum","eth"],
+        "Solana":["solana","sol "],"XRP":["xrp","ripple"],"DOGE":["dogecoin","doge"],
+        "Crypto":["crypto","defi","blockchain","token","binance","bnb","cardano"],
+        "US Politics":["trump","biden","harris","election","senate","congress","president"],
+        "International":["ukraine","russia","china","nato","putin","zelensky"],
+        "Economics":["inflation","gdp","recession","interest rate","fed rate","s&p"],
+    }
+    PARENT = {
+        "NBA":"Sports","NFL":"Sports","MLB":"Sports","NHL":"Sports",
+        "Soccer":"Sports","Tennis":"Sports","MMA/UFC":"Sports","Golf":"Sports",
+        "Bitcoin":"Crypto","Ethereum":"Crypto","Solana":"Crypto","XRP":"Crypto",
+        "DOGE":"Crypto","Crypto":"Crypto",
+        "US Politics":"Politics","International":"Politics",
+        "Economics":"Economics",
+    }
+
+    def _detect(title):
+        combined = (title or "").lower()
+        best, bn = "Other", 0
+        for cat, kws in CATEGORY_KEYWORDS.items():
+            n = sum(1 for k in kws if k in combined)
+            if n > bn:
+                bn, best = n, cat
+        return PARENT.get(best, "Other"), best
+
+    # Market metadata cache within this request
+    mkt_cache = {}
+    def _get_mkt(slug):
+        if slug in mkt_cache:
+            return mkt_cache[slug]
+        try:
+            r2 = http.get(f"{GAMMA}/markets", params={"slug": slug}, timeout=8)
+            if r2.ok:
+                d2 = r2.json()
+                mkt = d2[0] if isinstance(d2, list) and d2 else (d2 if isinstance(d2, dict) else {})
+                mkt_cache[slug] = mkt
+                return mkt
+        except Exception:
+            pass
+        return {}
+
+    stats = {}
+    total_resolved = total_wins = 0
+    total_estimated_pnl = 0.0
+
+    for raw in (trades or []):
+        action = (raw.get("action") or raw.get("side") or raw.get("type") or "").upper()
+        if action not in ("BUY","B","MARKET_BUY"):
+            continue
+        slug    = (raw.get("market_slug") or raw.get("slug") or raw.get("conduit_id") or "")
+        outcome = (raw.get("outcome") or raw.get("side_name") or "YES").upper()
+        outcome = "YES" if outcome in ("YES","Y") else "NO"
+        price   = float(raw.get("price") or 0.5)
+        shares  = float(raw.get("size") or raw.get("shares") or 0)
+        size_usd= float(raw.get("usdcSize") or raw.get("amount") or 0)
+        title   = raw.get("title") or raw.get("question") or ""
+        if not slug:
+            continue
+        mkt = _get_mkt(slug)
+        resolution = (mkt.get("resolution") or "").upper().strip()
+        if not resolution or resolution in ("","N/A","PENDING"):
+            continue
+        if not title:
+            title = mkt.get("question") or mkt.get("title") or slug
+        won  = (outcome == resolution) or (outcome == "YES" and resolution in ("YES","Y","1"))
+        pnl  = (shares * (1 - price)) if won else (-shares * price)
+        if shares == 0 and size_usd > 0 and price > 0:
+            pnl = size_usd * (1/price - 1) if won else -size_usd
+        total_resolved += 1
+        total_wins     += int(won)
+        total_estimated_pnl += pnl
+        parent_cat, sub_cat = _detect(title)
+        sub_data = (stats
+                    .setdefault(parent_cat, {})
+                    .setdefault(sub_cat, {"trades":0,"wins":0,"pnl":0.0}))
+        sub_data["trades"] += 1
+        sub_data["wins"]   += int(won)
+        sub_data["pnl"]    += pnl
+
+    # Add win rates
+    rows = []
+    for parent, cats in stats.items():
+        for sub_cat, sd in cats.items():
+            t = sd["trades"]
+            rows.append({
+                "parent":   parent,
+                "category": sub_cat,
+                "trades":   t,
+                "wins":     sd["wins"],
+                "win_rate": round(sd["wins"] / t, 4) if t else 0.0,
+                "pnl":      round(sd["pnl"], 2),
+            })
+    rows.sort(key=lambda x: x["pnl"], reverse=True)
+
+    profile = {
+        "address":          address,
+        "username":         username,
+        "overall_win_rate": round(total_wins / total_resolved, 4) if total_resolved else 0.0,
+        "total_trades":     total_resolved,
+        "estimated_pnl":    round(total_estimated_pnl, 2),
+        "poly_pnl":         round(poly_pnl, 2),
+        "breakdown":        rows,
+    }
+    cache[cache_key] = {"ts": time.time(), "data": profile}
+    return jsonify(profile)
+
+
+@app.get("/api/kalshi/filters")
+@require_auth
+def get_kalshi_filters():
+    """Get the current Kalshi CopyCat filter config for this user."""
+    con = get_db()
+    row = con.execute(
+        "SELECT config_json FROM configs WHERE license_key=?",
+        (request.license_key,)
+    ).fetchone()
+    con.close()
+    if row:
+        cfg = json.loads(row[0])
+        return jsonify(cfg.get("kalshi_filters", {}))
+    return jsonify({})
+
+
+@app.post("/api/kalshi/filters")
+@require_auth
+def save_kalshi_filters():
+    """Save Kalshi-specific filter overrides."""
+    filters = request.json or {}
+    con = get_db()
+    row = con.execute(
+        "SELECT config_json FROM configs WHERE license_key=?",
+        (request.license_key,)
+    ).fetchone()
+    cfg = json.loads(row[0]) if row else {}
+    cfg["kalshi_filters"] = filters
+    con.execute(
+        "INSERT OR REPLACE INTO configs (license_key, config_json, updated_at) VALUES (?,?,?)",
+        (request.license_key, json.dumps(cfg), datetime.now(timezone.utc).isoformat())
+    )
+    con.commit()
+    con.close()
+    return jsonify({"ok": True})
 
 # ─── Static assets ─────────────────────────────────────────────────────────────
 

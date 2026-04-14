@@ -56,6 +56,43 @@ main{flex:1;padding:16px;max-width:640px;width:100%;margin:0 auto;padding-bottom
 .tab.active{color:var(--text);border-bottom-color:var(--green)}
 .tab-pane{display:none}.tab-pane.active{display:block}
 
+/* ── Trader rows ── */
+.trader-profile-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s;border-radius:8px;margin:0 -6px;padding-left:6px;padding-right:6px}
+.trader-profile-row:hover{background:rgba(255,255,255,.03)}
+.trader-profile-row:last-child{border-bottom:none}
+.t-rank{width:22px;font-size:12px;color:var(--muted);font-weight:700;flex-shrink:0;text-align:center}
+.t-rank.gold{color:var(--gold)}
+.t-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--green2),var(--blue));display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;flex-shrink:0}
+.t-info{flex:1;min-width:0}
+.t-name{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.t-wr{font-size:12px;font-weight:700;text-align:right;flex-shrink:0}
+.t-wr.high{color:var(--green)}
+.t-wr.mid{color:#e3b341}
+.t-wr.low{color:var(--red)}
+.t-pnl{font-size:11px;color:var(--muted);text-align:right;flex-shrink:0}
+
+/* ── Breakdown table ── */
+.breakdown-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)}
+.breakdown-row:last-child{border-bottom:none}
+.br-cat{flex:1;font-size:13px}
+.br-cat-name{font-weight:600}
+.br-cat-parent{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px}
+.br-bar-wrap{width:80px;height:6px;background:var(--border2);border-radius:3px;flex-shrink:0}
+.br-bar{height:6px;border-radius:3px;background:var(--green)}
+.br-bar.neg{background:var(--red)}
+.br-wr{width:38px;font-size:12px;font-weight:700;text-align:right;flex-shrink:0}
+.br-wr.high{color:var(--green)}.br-wr.mid{color:#e3b341}.br-wr.low{color:var(--red)}
+.br-pnl{width:64px;font-size:12px;text-align:right;flex-shrink:0}
+.br-pnl.pos{color:var(--green)}.br-pnl.neg2{color:var(--red)}
+
+/* ── Kalshi filter section ── */
+.kf-cat-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border)}
+.kf-cat-row:last-child{border-bottom:none}
+.kf-label{flex:1;font-size:13px;font-weight:500}
+.kf-thresh{width:70px;font-size:12px;text-align:center;background:var(--bg);border:1px solid var(--border2);border-radius:6px;padding:4px 8px;color:var(--text);outline:none}
+.kf-toggle{flex-shrink:0}
+
 /* ── Cards ── */
 .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 18px}
@@ -381,8 +418,120 @@ select.inp{cursor:pointer}
         </div>
       </div>
 
+      <!-- Kalshi CopyCat settings -->
+      <div class="block" id="kalshi-settings-block" style="display:none">
+        <div class="block-header"><div class="block-title">🤖 Kalshi CopyCat Settings</div></div>
+        <div class="set-section-title">Position Sizing</div>
+        <div class="set-row">
+          <div><div class="set-label">Sizing Mode</div><div class="set-sub">How much to bet per trade on Kalshi</div></div>
+          <select class="inp" id="kalshi-wager-mode" onchange="updateKalshiMode()" style="width:120px">
+            <option value="fixed">Fixed $</option>
+            <option value="pct">% Balance</option>
+            <option value="scaled">Win-Rate Scaled</option>
+          </select>
+        </div>
+        <div class="set-row" id="kalshi-fixed-row">
+          <div><div class="set-label">Fixed Amount</div></div>
+          <select class="inp" id="kalshi-wager-fixed" style="width:90px">
+            <option value="5">$5</option><option value="10" selected>$10</option>
+            <option value="15">$15</option><option value="20">$20</option>
+            <option value="25">$25</option><option value="50">$50</option>
+            <option value="100">$100</option><option value="200">$200</option>
+          </select>
+        </div>
+        <div class="set-row" id="kalshi-pct-row" style="display:none">
+          <div><div class="set-label">% of Balance</div></div>
+          <select class="inp" id="kalshi-wager-pct" style="width:90px">
+            <option value="1">1%</option><option value="2" selected>2%</option>
+            <option value="3">3%</option><option value="5">5%</option>
+            <option value="10">10%</option>
+          </select>
+        </div>
+        <div class="set-row" id="kalshi-scale-row" style="display:none">
+          <div><div class="set-label">Base Amount</div><div class="set-sub">85%=1× · 95%=2× · 100%=2.5×</div></div>
+          <select class="inp" id="kalshi-scale-base" style="width:90px">
+            <option value="5">$5</option><option value="10" selected>$10</option>
+            <option value="20">$20</option><option value="50">$50</option>
+          </select>
+        </div>
+        <div class="set-section-title" style="margin-top:4px">Accuracy Filter</div>
+        <div class="set-row">
+          <div><div class="set-label">Win Rate Threshold</div><div class="set-sub">Minimum win rate to copy a trade</div></div>
+          <select class="inp" id="kalshi-threshold" style="width:80px">
+            <option value="0.75">75%</option><option value="0.80">80%</option>
+            <option value="0.85" selected>85%</option><option value="0.88">88%</option>
+            <option value="0.90">90%</option><option value="0.95">95%</option>
+          </select>
+        </div>
+        <div class="set-section-title" style="margin-top:4px">Category Overrides</div>
+        <div style="padding:4px 16px 12px">
+          <div style="font-size:11px;color:var(--muted);margin-bottom:8px">Enable categories and set custom thresholds</div>
+          <div id="kalshi-cat-filters"></div>
+        </div>
+      </div>
+
       <div class="save-bar">
         <button class="save-btn" id="save-btn" onclick="saveConfig()">Save Settings</button>
+      </div>
+    </div>
+
+    <!-- Traders tab -->
+    <div class="tab-pane" id="pane-traders">
+      <div class="tabs" id="tabs-bar-traders">
+        <button class="tab" onclick="switchTab('overview')">Overview</button>
+        <button class="tab" onclick="switchTab('trades')">Trades</button>
+        <button class="tab active" onclick="switchTab('traders')">Traders</button>
+        <button class="tab" onclick="switchTab('configure')">Settings</button>
+        <button class="tab" onclick="switchTab('account')">Account</button>
+      </div>
+
+      <div class="block">
+        <div class="block-header">
+          <div class="block-title">🏆 Top Traders by Category</div>
+          <span class="sync-info" id="traders-updated"></span>
+        </div>
+        <div style="padding:12px 16px 0">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+            <select class="inp" id="traders-cat-select" onchange="loadTopTraders()" style="flex:1;min-width:140px">
+              <option value="">All Categories</option>
+              <optgroup label="Sports">
+                <option value="NBA">NBA</option>
+                <option value="NFL">NFL</option>
+                <option value="MLB">MLB</option>
+                <option value="NHL">NHL</option>
+                <option value="Soccer">Soccer</option>
+                <option value="Tennis">Tennis</option>
+                <option value="MMA/UFC">MMA / UFC</option>
+                <option value="Golf">Golf</option>
+                <option value="F1">Formula 1</option>
+              </optgroup>
+              <optgroup label="Crypto">
+                <option value="Bitcoin">Bitcoin</option>
+                <option value="Ethereum">Ethereum</option>
+                <option value="Solana">Solana</option>
+                <option value="XRP">XRP</option>
+                <option value="DOGE">DOGE</option>
+                <option value="Crypto">Other Crypto</option>
+              </optgroup>
+              <optgroup label="Politics">
+                <option value="US Politics">US Politics</option>
+                <option value="International">International</option>
+              </optgroup>
+              <optgroup label="Other">
+                <option value="Economics">Economics</option>
+                <option value="Entertainment">Entertainment</option>
+              </optgroup>
+            </select>
+            <select class="inp" id="traders-period" onchange="loadTopTraders()" style="width:110px">
+              <option value="weekly">This Week</option>
+              <option value="monthly">This Month</option>
+              <option value="all">All Time</option>
+            </select>
+          </div>
+          <div id="traders-list">
+            <div class="empty"><div class="empty-icon">⏳</div>Loading top traders…</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -432,19 +581,62 @@ select.inp{cursor:pointer}
   </main>
 
   <nav class="bottom-nav">
-    <button class="nav-btn active" id="nav-overview" onclick="switchTab('overview')"><span class="nav-icon">📊</span>Overview</button>
-    <button class="nav-btn" id="nav-trades" onclick="switchTab('trades')"><span class="nav-icon">📋</span>Trades</button>
-    <button class="nav-btn" id="nav-configure" onclick="switchTab('configure')"><span class="nav-icon">⚙️</span>Settings</button>
-    <button class="nav-btn" id="nav-account" onclick="switchTab('account')"><span class="nav-icon">👤</span>Account</button>
+    <button class="nav-btn active" id="nav-overview"  onclick="switchTab('overview')"><span class="nav-icon">📊</span>Overview</button>
+    <button class="nav-btn" id="nav-trades"           onclick="switchTab('trades')"><span class="nav-icon">📋</span>Trades</button>
+    <button class="nav-btn" id="nav-traders"          onclick="switchTab('traders')"><span class="nav-icon">🏆</span>Traders</button>
+    <button class="nav-btn" id="nav-configure"        onclick="switchTab('configure')"><span class="nav-icon">⚙️</span>Settings</button>
+    <button class="nav-btn" id="nav-account"          onclick="switchTab('account')"><span class="nav-icon">👤</span>Account</button>
   </nav>
+
+  <!-- Trader Profile Modal -->
+  <div id="trader-modal" style="display:none;position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);overflow-y:auto;padding:20px 12px">
+    <div style="max-width:520px;margin:0 auto;background:var(--surface);border:1px solid var(--border2);border-radius:16px;overflow:hidden">
+      <div style="background:var(--bg);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)">
+        <div>
+          <div id="modal-username" style="font-size:16px;font-weight:700">—</div>
+          <div id="modal-address"  style="font-size:11px;color:var(--muted);font-family:monospace">—</div>
+        </div>
+        <button onclick="closeTraderModal()" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;padding:4px">✕</button>
+      </div>
+      <!-- Summary row -->
+      <div id="modal-summary" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;border-bottom:1px solid var(--border)">
+        <div style="padding:14px;text-align:center;border-right:1px solid var(--border)">
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Win Rate</div>
+          <div id="modal-winrate" style="font-size:22px;font-weight:800;color:var(--green)">—</div>
+        </div>
+        <div style="padding:14px;text-align:center;border-right:1px solid var(--border)">
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Trades</div>
+          <div id="modal-trades" style="font-size:22px;font-weight:800">—</div>
+        </div>
+        <div style="padding:14px;text-align:center">
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Poly PnL</div>
+          <div id="modal-pnl" style="font-size:22px;font-weight:800;color:var(--green)">—</div>
+        </div>
+      </div>
+      <!-- PnL breakdown table -->
+      <div style="padding:16px">
+        <div style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Performance Breakdown</div>
+        <div id="modal-breakdown">
+          <div style="text-align:center;padding:24px;color:var(--muted)">Loading…</div>
+        </div>
+      </div>
+      <!-- Actions -->
+      <div style="padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap">
+        <button id="modal-copy-btn" onclick="toggleCopyTrader()" style="flex:1;padding:10px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--green2);background:rgba(63,185,80,.1);color:var(--green)">+ Copy Trader</button>
+        <button onclick="closeTraderModal()" style="flex:1;padding:10px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--muted)">Close</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
-const TABS = ['overview','trades','configure','account'];
+const TABS = ['overview','trades','traders','configure','account'];
 let _tier = 'monthly';
 let _licData = {};
 let _selectedTraders = new Set();
-let _catState = {};   // {sports: true, nfl: true, ...}
+let _catState = {};
+let _modalAddress = '';
+let _kalshiFilters = {};
 
 // ── Tab switching ────────────────────────────────────────────────────────────
 function switchTab(name) {
@@ -452,8 +644,9 @@ function switchTab(name) {
     document.getElementById('pane-'+t).classList.toggle('active', t===name);
     document.getElementById('nav-'+t).classList.toggle('active', t===name);
   });
-  if (name === 'trades') loadAllTrades();
+  if (name === 'trades')   loadAllTrades();
   if (name === 'configure') loadConfigure();
+  if (name === 'traders')  loadTopTraders();
 }
 
 // ── Auth ────────────────────────────────────────────────────────────────────
@@ -501,6 +694,10 @@ function initApp(key, tier, lic) {
   document.getElementById('acct-sizing').textContent = lic.custom_sizing ? '✓ Included' : '✗ Monthly only';
   document.getElementById('acct-analytics').textContent = lic.pro_analytics ? '✓ Included' : '✗ Pro only';
   document.getElementById('acct-kalshi').textContent = lic.kalshi_bot ? '✓ Included' : '✗ Add-on';
+
+  // Show Kalshi settings block for kalshi tiers
+  const hasKalshi = lic.kalshi_bot || _tier.includes('kalshi');
+  document.getElementById('kalshi-settings-block').style.display = hasKalshi ? 'block' : 'none';
 
   loadOverview();
   setInterval(loadOverview, 15000);
@@ -649,6 +846,20 @@ async function loadConfigure() {
       document.getElementById('trader-locked').style.display = 'flex';
       document.getElementById('trader-content').style.display = 'none';
     }
+    // Kalshi settings
+    const hasKalshi = _licData.kalshi_bot || _tier.includes('kalshi');
+    if (hasKalshi) {
+      const kf = cfg.kalshi_filters || {};
+      const km = cfg.kalshi_wager_mode || 'fixed';
+      document.getElementById('kalshi-wager-mode').value  = km;
+      document.getElementById('kalshi-wager-fixed').value = String(cfg.kalshi_wager_fixed || 10);
+      document.getElementById('kalshi-wager-pct').value   = String(cfg.kalshi_wager_pct || 2);
+      document.getElementById('kalshi-scale-base').value  = String(cfg.kalshi_scale_base || 10);
+      document.getElementById('kalshi-threshold').value   = String(cfg.kalshi_threshold || 0.85);
+      updateKalshiMode();
+      _kalshiFilters = kf;
+      renderKalshiCatFilters();
+    }
   } catch(e) { console.error('loadConfigure', e); }
 }
 
@@ -702,17 +913,19 @@ async function loadTraders() {
       return;
     }
     list.innerHTML = traders.map((t,i) => {
-      const addr = t.address || t.id || '';
-      const name = t.username || (addr.slice(0,8)+'…'+addr.slice(-4));
-      const pnl  = t.pnl != null ? '+$'+Number(t.pnl).toLocaleString() : '';
+      const addr = (t.address || t.id || '').toLowerCase();
+      const name = t.pseudonym || t.username || (addr.slice(0,6)+'…'+addr.slice(-4));
+      const pnl  = t.pnl != null ? (Number(t.pnl)>=0?'+$':'-$')+Math.abs(Number(t.pnl)).toLocaleString([],{maximumFractionDigits:0}) : '';
       const chk  = _selectedTraders.has(addr);
       return [
-        '<div class="trader-row">',
-        '<span class="trader-rank">' + (i+1) + '</span>',
-        '<span class="trader-name">' + name + '</span>',
-        '<span class="trader-stat">' + pnl + '</span>',
-        '<input type="checkbox" class="trader-cb" ' + (chk?'checked':'') + ' onchange="toggleTrader(this,\'' + addr + '\')" />',
-        '</div>'
+        `<div class="trader-profile-row" onclick="openTraderModal('${addr}','${name.replace(/'/g,"\\'")}')">`,
+        `<span class="trader-rank${i<3?' gold':''}">${i+1}</span>`,
+        `<div class="t-avatar">${name.slice(0,2).toUpperCase()}</div>`,
+        `<div class="t-info"><div class="t-name">${name}</div><div class="t-meta">Click to view profile</div></div>`,
+        `<div style="display:flex;align-items:center;gap:8px">`,
+        `<span style="font-size:13px;font-weight:600;color:${Number(t.pnl||0)>=0?'var(--green)':'var(--red)'}">${pnl}</span>`,
+        `<input type="checkbox" class="trader-cb" ${chk?'checked':''} onclick="event.stopPropagation()" onchange="toggleTrader(this,'${addr}')" />`,
+        `</div></div>`,
       ].join('');
     }).join('');
     updateTraderCount();
@@ -746,13 +959,212 @@ async function saveConfig() {
     categories: _catState,
     selected_traders: Array.from(_selectedTraders),
   };
+  // Kalshi settings
+  const hasKalshi = _licData.kalshi_bot || _tier.includes('kalshi');
+  if (hasKalshi) {
+    cfg.kalshi_wager_mode  = document.getElementById('kalshi-wager-mode').value;
+    cfg.kalshi_wager_fixed = parseFloat(document.getElementById('kalshi-wager-fixed').value);
+    cfg.kalshi_wager_pct   = parseFloat(document.getElementById('kalshi-wager-pct').value);
+    cfg.kalshi_scale_base  = parseFloat(document.getElementById('kalshi-scale-base').value);
+    cfg.kalshi_threshold   = parseFloat(document.getElementById('kalshi-threshold').value);
+    cfg.kalshi_filters     = readKalshiFilters();
+  }
   await fetch('/api/config', {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify(cfg)
   });
-  btn.textContent = 'Saved ✓';
-  btn.className = 'save-btn saved';
-  setTimeout(() => { btn.textContent = 'Save Settings'; btn.className = 'save-btn'; }, 2500);
+  if (btn) {
+    btn.textContent = 'Saved ✓';
+    btn.className = 'save-btn saved';
+    setTimeout(() => { btn.textContent = 'Save Settings'; btn.className = 'save-btn'; }, 2500);
+  }
+}
+
+// ── Top traders (Traders tab) ────────────────────────────────────────────────
+const KALSHI_CATS = [
+  {key:'NBA',parent:'Sports'},{key:'NFL',parent:'Sports'},{key:'MLB',parent:'Sports'},
+  {key:'NHL',parent:'Sports'},{key:'Soccer',parent:'Sports'},{key:'Tennis',parent:'Sports'},
+  {key:'MMA/UFC',parent:'Sports'},{key:'Golf',parent:'Sports'},{key:'F1',parent:'Sports'},
+  {key:'Bitcoin',parent:'Crypto'},{key:'Ethereum',parent:'Crypto'},{key:'Solana',parent:'Crypto'},
+  {key:'XRP',parent:'Crypto'},{key:'DOGE',parent:'Crypto'},{key:'Crypto',parent:'Crypto'},
+  {key:'US Politics',parent:'Politics'},{key:'International',parent:'Politics'},
+  {key:'Economics',parent:'Economics'},
+];
+
+async function loadTopTraders() {
+  const cat    = document.getElementById('traders-cat-select').value;
+  const period = document.getElementById('traders-period').value;
+  const list   = document.getElementById('traders-list');
+  list.innerHTML = '<div class="empty"><div class="empty-icon">⏳</div>Loading…</div>';
+  try {
+    const traders = await fetch(
+      `/api/traders?category=${encodeURIComponent(cat)}&limit=20&period=${period}`
+    ).then(r=>r.json());
+    const arr = Array.isArray(traders) ? traders : (traders.traders || []);
+    if (!arr.length) {
+      list.innerHTML = '<div class="empty"><div class="empty-icon">🔍</div>No traders found for this category</div>';
+      return;
+    }
+    list.innerHTML = arr.map((t, i) => {
+      const addr = (t.address || t.id || '').toLowerCase();
+      const name = t.pseudonym || t.username || (addr.slice(0,6)+'…'+addr.slice(-4));
+      const pnl  = t.pnl != null ? (Number(t.pnl) >= 0 ? '+$' : '-$') + Math.abs(Number(t.pnl)).toLocaleString([], {maximumFractionDigits:0}) : '';
+      const vol  = t.volume != null ? '$'+Number(t.volume).toLocaleString([],{maximumFractionDigits:0})+' vol' : '';
+      const rank = i + 1;
+      const avatar = name.slice(0,2).toUpperCase();
+      const isCopying = _selectedTraders.has(addr);
+      return `
+        <div class="trader-profile-row" onclick="openTraderModal('${addr}','${name.replace(/'/g,"\\'")}')">
+          <span class="t-rank${rank<=3?' gold':''}">${rank}</span>
+          <div class="t-avatar" style="${rank===1?'background:linear-gradient(135deg,#d4af37,#b8860b)':rank===2?'background:linear-gradient(135deg,#888,#555)':rank===3?'background:linear-gradient(135deg,#cd7f32,#a0522d)':''}">${avatar}</div>
+          <div class="t-info">
+            <div class="t-name">${name}${isCopying?' <span style="font-size:10px;color:var(--green)">✓ Copying</span>':''}</div>
+            <div class="t-meta">${vol}</div>
+          </div>
+          <div>
+            <div class="t-pnl" style="color:${Number(t.pnl||0)>=0?'var(--green)':'var(--red)';font-weight:600;font-size:13px}">${pnl}</div>
+          </div>
+        </div>`;
+    }).join('');
+    document.getElementById('traders-updated').textContent = 'updated just now';
+  } catch(e) {
+    list.innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div>Failed to load — try again</div>';
+  }
+}
+
+// ── Trader profile modal ──────────────────────────────────────────────────────
+async function openTraderModal(address, username) {
+  _modalAddress = address;
+  document.getElementById('trader-modal').style.display = 'block';
+  document.body.style.overflow = 'hidden';
+  document.getElementById('modal-username').textContent = username || address.slice(0,12);
+  document.getElementById('modal-address').textContent  = address;
+  document.getElementById('modal-winrate').textContent  = '…';
+  document.getElementById('modal-trades').textContent   = '…';
+  document.getElementById('modal-pnl').textContent      = '…';
+  document.getElementById('modal-breakdown').innerHTML  = '<div style="text-align:center;padding:24px;color:var(--muted)">Analyzing trades…<br><span style="font-size:11px">This may take a moment</span></div>';
+
+  const isCopying = _selectedTraders.has(address);
+  const btn = document.getElementById('modal-copy-btn');
+  btn.textContent = isCopying ? '✓ Copying (remove)' : '+ Copy Trader';
+  btn.style.color  = isCopying ? 'var(--muted)' : 'var(--green)';
+  btn.style.borderColor = isCopying ? 'var(--border2)' : 'var(--green2)';
+
+  try {
+    const profile = await fetch(`/api/trader/${address}`).then(r=>r.json());
+    const wr  = profile.overall_win_rate || 0;
+    const pnl = profile.poly_pnl || profile.estimated_pnl || 0;
+
+    document.getElementById('modal-winrate').textContent = (wr*100).toFixed(1)+'%';
+    document.getElementById('modal-winrate').style.color =
+      wr >= 0.85 ? 'var(--green)' : wr >= 0.70 ? '#e3b341' : 'var(--red)';
+    document.getElementById('modal-trades').textContent = profile.total_trades || '—';
+    document.getElementById('modal-pnl').textContent =
+      (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toLocaleString([], {maximumFractionDigits:0});
+    document.getElementById('modal-pnl').style.color = pnl >= 0 ? 'var(--green)' : 'var(--red)';
+
+    const rows = (profile.breakdown || []);
+    if (!rows.length) {
+      document.getElementById('modal-breakdown').innerHTML =
+        '<div style="padding:16px;color:var(--muted);font-size:13px">No resolved trade data available yet</div>';
+      return;
+    }
+    const maxAbsPnl = Math.max(...rows.map(r => Math.abs(r.pnl || 0)), 1);
+    document.getElementById('modal-breakdown').innerHTML = rows.map(r => {
+      const wr2  = r.win_rate || 0;
+      const pnl2 = r.pnl || 0;
+      const wrCls = wr2 >= 0.85 ? 'high' : wr2 >= 0.70 ? 'mid' : 'low';
+      const barW  = Math.round(Math.abs(pnl2) / maxAbsPnl * 100);
+      const barCls = pnl2 >= 0 ? '' : 'neg';
+      const pnlStr = (pnl2 >= 0 ? '+$' : '-$') + Math.abs(pnl2).toLocaleString([],{maximumFractionDigits:0});
+      return `
+        <div class="breakdown-row">
+          <div class="br-cat">
+            <div class="br-cat-name">${r.category}</div>
+            <div class="br-cat-parent">${r.parent} · ${r.trades} trades</div>
+          </div>
+          <div class="br-bar-wrap"><div class="br-bar ${barCls}" style="width:${barW}%"></div></div>
+          <div class="br-wr ${wrCls}">${(wr2*100).toFixed(0)}%</div>
+          <div class="br-pnl ${pnl2>=0?'pos':'neg2'}">${pnlStr}</div>
+        </div>`;
+    }).join('');
+  } catch(e) {
+    document.getElementById('modal-breakdown').innerHTML =
+      '<div style="padding:16px;color:var(--red);font-size:13px">Failed to load profile — try again</div>';
+  }
+}
+
+function closeTraderModal() {
+  document.getElementById('trader-modal').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+function toggleCopyTrader() {
+  const addr = _modalAddress;
+  if (!addr) return;
+  if (_selectedTraders.has(addr)) {
+    _selectedTraders.delete(addr);
+  } else {
+    const max = _licData.max_traders || 5;
+    if (_selectedTraders.size >= max) {
+      alert(`Your plan allows up to ${max} traders. Remove one first.`);
+      return;
+    }
+    _selectedTraders.add(addr);
+  }
+  const isCopying = _selectedTraders.has(addr);
+  const btn = document.getElementById('modal-copy-btn');
+  btn.textContent = isCopying ? '✓ Copying (remove)' : '+ Copy Trader';
+  btn.style.color = isCopying ? 'var(--muted)' : 'var(--green)';
+  // Auto-save
+  saveConfig();
+}
+
+// ── Kalshi settings ───────────────────────────────────────────────────────────
+function updateKalshiMode() {
+  const mode = document.getElementById('kalshi-wager-mode').value;
+  document.getElementById('kalshi-fixed-row').style.display  = mode==='fixed'  ? 'flex':'none';
+  document.getElementById('kalshi-pct-row').style.display    = mode==='pct'    ? 'flex':'none';
+  document.getElementById('kalshi-scale-row').style.display  = mode==='scaled' ? 'flex':'none';
+}
+
+function renderKalshiCatFilters() {
+  const el = document.getElementById('kalshi-cat-filters');
+  el.innerHTML = KALSHI_CATS.map(({key, parent}) => {
+    const f = _kalshiFilters[key] || {};
+    const on = f.enabled !== false;
+    const th = f.threshold || '';
+    return `
+      <div class="kf-cat-row">
+        <div class="kf-label">${key} <span style="color:var(--muted);font-size:11px">${parent}</span></div>
+        <input type="number" class="kf-thresh" id="kf-th-${key.replace(/\//g,'-')}"
+          value="${th}" placeholder="85" min="50" max="100" step="1"
+          title="Win rate % threshold for ${key}" />
+        <label class="toggle kf-toggle">
+          <input type="checkbox" id="kf-on-${key.replace(/\//g,'-')}"
+            ${on?'checked':''} onchange="kalshiCatChanged('${key}')">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>`;
+  }).join('');
+}
+
+function kalshiCatChanged(key) { /* config saved on saveConfig */ }
+
+function readKalshiFilters() {
+  const filters = {};
+  KALSHI_CATS.forEach(({key}) => {
+    const safeKey = key.replace(/\//g, '-');
+    const onEl = document.getElementById(`kf-on-${safeKey}`);
+    const thEl = document.getElementById(`kf-th-${safeKey}`);
+    if (!onEl) return;
+    filters[key] = {
+      enabled:   onEl.checked,
+      threshold: thEl && thEl.value ? parseFloat(thEl.value)/100 : null,
+    };
+    if (filters[key].threshold === null) delete filters[key].threshold;
+  });
+  return filters;
 }
 
 // ── Session restore ──────────────────────────────────────────────────────────
